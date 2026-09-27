@@ -1,7 +1,7 @@
 id=virtualap_m326b_fix
 name=VirtualAP Fix & Web Control Panel (M32 5G)
-version=v2.2
-versionCode=220
+version=v2.3
+versionCode=230
 author=Antigravity
 description=VirtualAP for Samsung Galaxy M32 5G (Dimensity 720). Fixes 464XLAT mobile data, persistent boot daemon across reboots, action button, and Web Control Panel with interface selection.
 actionTitle=Open Web Control Panel
