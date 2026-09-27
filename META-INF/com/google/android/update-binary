@@ -1,0 +1,11 @@
+#!/sbin/sh
+#################
+# Magisk Module #
+#################
+umask 022
+# Load util_functions.sh
+[ -f /data/adb/magisk/util_functions.sh ] || exit 1
+. /data/adb/magisk/util_functions.sh
+# Run the installer
+install_module
+exit 0

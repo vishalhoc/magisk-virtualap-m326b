@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VirtualAP Control Panel | Samsung M32 5G</title>
+    <style>
+        :root {
+            --bg-body: #0b0f19;
+            --bg-card: #151d30;
+            --bg-card-hover: #1c263e;
+            --bg-input: #0a0e17;
+            --border: #263554;
+            --border-focus: #38bdf8;
+            --accent-cyan: #38bdf8;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: var(--bg-body); color: var(--text-main); padding: 14px; min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        /* Toast notification */
+        #toast {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-100px);
+            background: #1e293b; color: #fff; padding: 12px 24px; border-radius: 9999px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid var(--border-focus);
+            font-size: 0.88rem; font-weight: 600; z-index: 1000; transition: transform 0.3s ease;
+            display: flex; align-items: center; gap: 8px;
+        }
+        #toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* Header */
+        header { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+        .brand h1 { font-size: 1.35rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+        .brand p { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+        .header-actions { display: flex; align-items: center; gap: 10px; }
+        .btn-refresh {
+            background: var(--bg-card); color: var(--accent-cyan); border: 1px solid var(--border);
+            padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .btn-refresh:hover { border-color: var(--accent-cyan); }
+
+        /* Badges */
+        .status-badge {
+            padding: 6px 12px; border-radius: 9999px; font-size: 0.75rem; font-weight: 700;
+            letter-spacing: 0.05em; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .status-badge.active { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .status-badge.stopped { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .status-badge.active .dot { background: var(--accent-green); box-shadow: 0 0 10px var(--accent-green); animation: pulse 2s infinite; }
+        .status-badge.stopped .dot { background: var(--accent-red); }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* Grid */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+        @media (max-width: 680px) { .grid-2 { grid-template-columns: 1fr; } }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+        .card-title { font-size: 0.92rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+        /* Info rows */
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.84rem; }
+        .stat-row:last-child { border-bottom: none; }
+        .stat-label { color: var(--text-muted); }
+        .stat-val { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #fff; }
+
+        /* Forms */
+        .form-row { margin-bottom: 12px; }
+        label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+        input, select {
+            width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: #fff;
+            border-radius: 8px; padding: 9px 12px; font-size: 0.88rem; transition: border-color 0.2s;
+        }
+        input:focus, select:focus { outline: none; border-color: var(--border-focus); }
+        .input-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
+
+        /* Buttons */
+        .action-row { display: flex; gap: 10px; margin-top: 14px; }
+        button.btn-ctrl {
+            flex: 1; padding: 11px 14px; border-radius: 8px; font-weight: 700; font-size: 0.88rem;
+            cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .btn-start { background: var(--accent-green); color: #052e16; }
+        .btn-start:hover { filter: brightness(1.1); box-shadow: 0 0 14px rgba(16, 185, 129, 0.4); }
+        .btn-stop { background: var(--accent-red); color: #fff; }
+        .btn-stop:hover { filter: brightness(1.1); }
+        .btn-restart { background: #3b82f6; color: #fff; }
+        .btn-restart:hover { filter: brightness(1.1); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; filter: none !important; box-shadow: none !important; }
+
+        /* Table */
+        .client-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 8px; }
+        .client-table th { text-align: left; padding: 8px; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        .client-table td { padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .client-active { color: var(--accent-green); font-size: 0.75rem; font-weight: 700; background: rgba(16, 185, 129, 0.1); padding: 2px 6px; border-radius: 4px; }
+
+        /* Logs */
+        .log-box {
+            background: #050811; border-radius: 8px; padding: 12px; font-family: ui-monospace, monospace;
+            font-size: 0.74rem; color: #86efac; height: 160px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; border: 1px solid var(--border);
+        }
+        .tab-bar { display: flex; gap: 6px; margin-bottom: 8px; }
+        .tab {
+            background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: 5px 12px;
+            font-size: 0.75rem; border-radius: 6px; cursor: pointer; font-weight: 600;
+        }
+        .tab.active { background: var(--border); color: #fff; }
+    </style>
+</head>
+<body>
+    <div id="toast">✅ Action Completed</div>
+
+    <div class="container">
+        <header>
+            <div class="brand">
+                <h1>📡 VirtualAP Control Panel</h1>
+                <p>Samsung Galaxy M32 5G (SM-M326B / Dimensity 720)</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn-refresh" onclick="refreshAll(true)">🔄 Refresh</button>
+                <div id="statusBadge" class="status-badge stopped">
+                    <span class="dot"></span>
+                    <span id="statusText">STOPPED</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="grid-2">
+            <!-- Left: Real-time Live Status -->
+            <div class="card">
+                <div class="card-title">📊 Live Engine Status</div>
+                <div class="stat-row"><span class="stat-label">Wi-Fi SSID</span><span class="stat-val" id="lblSSID">-</span></div>
+                <div class="stat-row"><span class="stat-label">Physical Interface</span><span class="stat-val" id="lblPhy">-</span></div>
+                <div class="stat-row"><span class="stat-label">Virtual AP Interface</span><span class="stat-val" id="lblApDev">-</span></div>
+                <div class="stat-row"><span class="stat-label">Upstream Table</span><span class="stat-val" id="lblUpstreamTable" style="color:var(--accent-cyan);">-</span></div>
+                <div class="stat-row"><span class="stat-label">Band / Channel</span><span class="stat-val" id="lblBandChan">-</span></div>
+                <div class="stat-row"><span class="stat-label">Channel Width</span><span class="stat-val" id="lblWidth">-</span></div>
+                <div class="stat-row"><span class="stat-label">AP Gateway</span><span class="stat-val" id="lblGateway">-</span></div>
+                <div class="stat-row"><span class="stat-label">Connected Devices</span><span class="stat-val" id="lblClients" style="color:var(--accent-green); font-size:1rem;">0</span></div>
+            </div>
+
+            <!-- Right: Settings & Interface Selection -->
+            <div class="card">
+                <div class="card-title">⚙️ Interface & Wi-Fi Settings</div>
+                
+                <div class="form-row">
+                    <label>1. Physical Wi-Fi Interface</label>
+                    <select id="selPhyIface">
+                        <option value="wlan0">wlan0 (Built-in MediaTek Wi-Fi)</option>
+                    </select>
+                    <div class="input-hint">The hardware Wi-Fi chip radio to create the hotspot on.</div>
+                </div>
+
+                <div class="form-row">
+                    <label>2. Virtual AP Interface Mode</label>
+                    <select id="selApIface">
+                        <option value="ap0">ap0 (Virtual AP — Wi-Fi + AP Concurrency)</option>
+                        <option value="swlan0">swlan0 (Samsung Pre-allocated SAP)</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label>3. Upstream Internet Source</label>
+                    <select id="selUpstream">
+                        <option value="auto">auto (Auto 464XLAT Cellular v4-rmnet0 / Wi-Fi)</option>
+                        <option value="v4-rmnet0">v4-rmnet0 (Mobile Data IPv4 CLAT)</option>
+                        <option value="rmnet0">rmnet0 (Cellular Direct)</option>
+                        <option value="wlan0">wlan0 (Wi-Fi STA Repeater)</option>
+                    </select>
+                </div>
+
+                <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                    <div class="form-row">
+                        <label>SSID Name</label>
+                        <input type="text" id="txtSSID" value="hoc">
+                    </div>
+                    <div class="form-row">
+                        <label>WPA2 Password</label>
+                        <input type="text" id="txtPass" value="1234567890">
+                    </div>
+                </div>
+
+                <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                    <div class="form-row">
+                        <label>Band</label>
+                        <select id="selBand" onchange="updateChannelList()">
+                            <option value="5">5 GHz (High Speed)</option>
+                            <option value="2">2.4 GHz (Long Range)</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Channel</label>
+                        <select id="selChannel">
+                            <option value="44">44 (5 GHz)</option>
+                            <option value="36">36 (5 GHz)</option>
+                            <option value="40">40 (5 GHz)</option>
+                            <option value="48">48 (5 GHz)</option>
+                            <option value="149">149 (5 GHz)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="action-row">
+                    <button id="btnStart" class="btn-ctrl btn-start" onclick="applyStart()">▶ Start AP</button>
+                    <button id="btnStop" class="btn-ctrl btn-stop" onclick="applyStop()">⏹ Stop</button>
+                    <button id="btnRestart" class="btn-ctrl btn-restart" onclick="applyStart()">🔄 Restart</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connected Clients -->
+        <div class="card" style="margin-bottom:16px;">
+            <div class="card-title">📱 Connected Clients</div>
+            <table class="client-table">
+                <thead>
+                    <tr><th>Device Name</th><th>IP Address</th><th>MAC Address</th><th>Status</th></tr>
+                </thead>
+                <tbody id="clientsList">
+                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">Scanning connected devices...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Diagnostic Logs -->
+        <div class="card">
+            <div class="card-title">📋 Live Diagnostics & Logs</div>
+            <div class="tab-bar">
+                <button class="tab active" onclick="setTab('hostapd', this)">hostapd</button>
+                <button class="tab" onclick="setTab('dnsmasq', this)">dnsmasq</button>
+                <button class="tab" onclick="setTab('system', this)">system</button>
+            </div>
+            <div id="logOutput" class="log-box">Loading logs...</div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'hostapd';
+        let cachedLogs = { hostapd: '', dnsmasq: '', system: '' };
+        let isOperating = false;
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function updateChannelList() {
+            const band = document.getElementById('selBand').value;
+            const chanSel = document.getElementById('selChannel');
+            const curVal = chanSel.value;
+            chanSel.innerHTML = '';
+
+            let channels = [];
+            if (band === '5') {
+                channels = [
+                    {val: '36', text: '36 (5 GHz)'},
+                    {val: '40', text: '40 (5 GHz)'},
+                    {val: '44', text: '44 (5 GHz)'},
+                    {val: '48', text: '48 (5 GHz)'},
+                    {val: '149', text: '149 (5 GHz)'},
+                    {val: '153', text: '153 (5 GHz)'},
+                    {val: '157', text: '157 (5 GHz)'},
+                    {val: '161', text: '161 (5 GHz)'}
+                ];
+            } else {
+                channels = [
+                    {val: '1', text: '1 (2.4 GHz)'},
+                    {val: '6', text: '6 (2.4 GHz)'},
+                    {val: '11', text: '11 (2.4 GHz)'}
+                ];
+            }
+
+            channels.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.val;
+                opt.innerText = c.text;
+                if (c.val === curVal) opt.selected = true;
+                chanSel.appendChild(opt);
+            });
+        }
+
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=status&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+
+                const badge = document.getElementById('statusBadge');
+                const badgeTxt = document.getElementById('statusText');
+                if (d.running) {
+                    badge.className = 'status-badge active';
+                    badgeTxt.innerText = 'ACTIVE';
+                    document.getElementById('btnStart').disabled = true;
+                    document.getElementById('btnStop').disabled = false;
+                } else {
+                    badge.className = 'status-badge stopped';
+                    badgeTxt.innerText = 'STOPPED';
+                    document.getElementById('btnStart').disabled = false;
+                    document.getElementById('btnStop').disabled = true;
+                }
+
+                document.getElementById('lblSSID').innerText = d.ssid || '-';
+                document.getElementById('lblPhy').innerText = d.phy_iface || 'wlan0';
+                document.getElementById('lblApDev').innerText = d.ap_iface || 'ap0';
+                document.getElementById('lblUpstreamTable').innerText = (d.upstream_table || d.upstream || 'auto') + (d.upstream_iface ? ' (' + d.upstream_iface + ')' : '');
+                document.getElementById('lblBandChan').innerText = (d.band === '5' ? '5 GHz' : '2.4 GHz') + ' / Channel ' + (d.channel || 'auto');
+                document.getElementById('lblWidth').innerText = (d.width || '20') + ' MHz';
+                document.getElementById('lblGateway').innerText = d.gateway || '192.168.233.218';
+                document.getElementById('lblClients').innerText = d.clients || 0;
+
+                // Sync inputs only if user is not currently typing
+                if (!isOperating && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+                    if (d.ssid) document.getElementById('txtSSID').value = d.ssid;
+                    if (d.password) document.getElementById('txtPass').value = d.password;
+                    if (d.band) {
+                        document.getElementById('selBand').value = d.band;
+                        updateChannelList();
+                    }
+                    if (d.channel) document.getElementById('selChannel').value = d.channel;
+                    if (d.phy_iface) document.getElementById('selPhyIface').value = d.phy_iface;
+                    if (d.ap_iface) document.getElementById('selApIface').value = d.ap_iface;
+                    if (d.upstream) document.getElementById('selUpstream').value = d.upstream;
+                }
+            } catch(e) {
+                console.error('fetchStatus error:', e);
+            }
+        }
+
+        async function fetchInterfaces() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=interfaces&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+
+                const selPhy = document.getElementById('selPhyIface');
+                const curPhy = selPhy.value;
+                selPhy.innerHTML = '';
+                (d.phy_interfaces || ['wlan0']).forEach(iface => {
+                    const opt = document.createElement('option');
+                    opt.value = iface;
+                    opt.innerText = iface + (iface === 'wlan0' ? ' (Built-in MediaTek Wi-Fi)' : ' (Wireless Radio)');
+                    if (iface === curPhy) opt.selected = true;
+                    selPhy.appendChild(opt);
+                });
+
+                const selUp = document.getElementById('selUpstream');
+                const curUp = selUp.value;
+                selUp.innerHTML = '';
+                (d.upstream_interfaces || []).forEach(item => {
+                    const opt = document.createElement('option');
+                    opt.value = item.name;
+                    opt.innerText = item.label || item.name;
+                    if (item.name === curUp) opt.selected = true;
+                    selUp.appendChild(opt);
+                });
+            } catch(e) {
+                console.error('fetchInterfaces error:', e);
+            }
+        }
+
+        async function fetchClients() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=clients&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+                const tbody = document.getElementById('clientsList');
+
+                if (!d.clients || d.clients.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">No devices connected</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = d.clients.map(c => `
+                    <tr>
+                        <td style="color:#fff; font-weight:600;">${c.hostname}</td>
+                        <td style="color:var(--accent-cyan); font-weight:600;">${c.ip}</td>
+                        <td style="color:var(--text-muted);">${c.mac}</td>
+                        <td><span class="client-active">CONNECTED</span></td>
+                    </tr>
+                `).join('');
+            } catch(e) {
+                console.error('fetchClients error:', e);
+            }
+        }
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=logs&_t=' + Date.now(), { cache: 'no-store' });
+                cachedLogs = await res.json();
+                document.getElementById('logOutput').innerText = cachedLogs[currentTab] || 'No log data';
+            } catch(e) {
+                console.error('fetchLogs error:', e);
+            }
+        }
+
+        function setTab(tab, el) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById('logOutput').innerText = cachedLogs[currentTab] || 'No log data';
+        }
+
+        async function applyStart() {
+            isOperating = true;
+            document.getElementById('statusText').innerText = 'STARTING...';
+            document.getElementById('btnStart').disabled = true;
+
+            const p = new URLSearchParams({
+                action: 'start',
+                ssid: document.getElementById('txtSSID').value,
+                password: document.getElementById('txtPass').value,
+                phy_iface: document.getElementById('selPhyIface').value,
+                ap_iface: document.getElementById('selApIface').value,
+                upstream: document.getElementById('selUpstream').value,
+                band: document.getElementById('selBand').value,
+                channel: document.getElementById('selChannel').value,
+                width: '20',
+                gateway: '192.168.233.218',
+                dns: '1.1.1.1'
+            });
+
+            try {
+                const res = await fetch('/cgi-bin/api.sh?' + p.toString() + '&_t=' + Date.now(), { method: 'POST' });
+                const d = await res.json();
+                showToast(d.running ? '✅ VirtualAP Started Successfully' : '⚠️ AP start command dispatched');
+            } catch(e) {
+                showToast('❌ Error starting AP: ' + e);
+            }
+
+            setTimeout(async () => {
+                await refreshAll(false);
+                isOperating = false;
+            }, 2500);
+        }
+
+        async function applyStop() {
+            isOperating = true;
+            document.getElementById('statusText').innerText = 'STOPPING...';
+            document.getElementById('btnStop').disabled = true;
+
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=stop&_t=' + Date.now(), { method: 'POST' });
+                const d = await res.json();
+                showToast('⏹ VirtualAP Stopped');
+            } catch(e) {
+                showToast('❌ Error stopping AP: ' + e);
+            }
+
+            setTimeout(async () => {
+                await refreshAll(false);
+                isOperating = false;
+            }, 1800);
+        }
+
+        async function refreshAll(manual) {
+            if (manual) showToast('🔄 Refreshing live data...');
+            await Promise.all([fetchStatus(), fetchClients(), fetchLogs()]);
+        }
+
+        // Initial setup
+        updateChannelList();
+        fetchInterfaces().then(() => fetchStatus());
+        fetchClients();
+        fetchLogs();
+
+        // 3-second live auto-polling with cache buster
+        setInterval(() => {
+            if (!isOperating) {
+                fetchStatus();
+                fetchClients();
+                fetchLogs();
+            }
+        }, 3000);
+    </script>
+</body>
+</html>
