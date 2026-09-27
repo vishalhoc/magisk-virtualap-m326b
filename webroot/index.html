@@ -285,7 +285,7 @@
                     <div class="grid-2" style="gap:10px; margin-bottom:0;">
                         <div class="form-row">
                             <label>Gateway IP</label>
-                            <input type="text" id="txtVapGW" value="192.168.233.218">
+                            <input type="text" id="txtVapGW" value="192.168.42.1">
                         </div>
                         <div class="form-row">
                             <label>DNS Server</label>
@@ -675,7 +675,7 @@
                 document.getElementById('lblVapUpstream').innerText = (d.upstream_table || d.upstream || 'auto') + (d.upstream_iface ? ' (' + d.upstream_iface + ')' : '');
                 document.getElementById('lblVapBandChan').innerText = (d.band === '5' ? '5 GHz' : '2.4 GHz') + ' / Channel ' + (d.channel || 'auto');
                 document.getElementById('lblVapWidth').innerText = (d.width || '20') + ' MHz';
-                document.getElementById('lblVapGateway').innerText = d.gateway || '192.168.233.218';
+                document.getElementById('lblVapGateway').innerText = d.gateway || '192.168.42.1';
                 document.getElementById('lblVapClients').innerText = d.clients || 0;
                 document.getElementById('chkAutostart').checked = !!d.autostart;
 

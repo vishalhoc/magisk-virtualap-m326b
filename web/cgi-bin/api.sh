@@ -147,7 +147,7 @@ case "$ACTION" in
         BAND="${PREF_BAND:-${BAND:-5}}"
         CHANNEL="${PREF_CHAN:-${CHANNEL:-}}"
         WIDTH="${PREF_WIDTH:-${WIDTH:-20}}"
-        IP_GW="${PREF_GW:-${IP_GW:-192.168.233.218}}"
+        IP_GW="${PREF_GW:-${IP_GW:-192.168.42.1}}"
         DNS_SERVERS="${PREF_DNS:-${DNS_SERVERS:-1.1.1.1}}"
         UPSTREAM="${PREF_UPSTREAM:-${UPSTREAM:-auto}}"
         SECURITY="${PREF_SEC:-${SECURITY:-wpa2}}"
@@ -319,7 +319,7 @@ EOF
         P_BAND=$(get_param "band" "5")
         P_CHAN=$(get_param "channel" "")
         P_WIDTH=$(get_param "width" "20")
-        P_GW=$(get_param "gateway" "192.168.233.218")
+        P_GW=$(get_param "gateway" "192.168.42.1")
         P_DNS=$(get_param "dns" "1.1.1.1")
         P_SEC=$(get_param "security" "wpa2")
         P_HIDDEN=$(get_param "hidden" "0")

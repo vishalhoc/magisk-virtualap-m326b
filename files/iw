@@ -1,0 +1,54 @@
+#!/system/bin/sh
+# VirtualAP iw wrapper for Samsung Galaxy M32 5G (Dimensity 720 / MT6853)
+# Keeps MediaTek Wi-Fi chip awake and ensures ap0 creates cleanly without turning on Wi-Fi or Hotspot
+
+REAL_IW="/data/local/virtualap/bin/iw.real"
+[ ! -x "$REAL_IW" ] && REAL_IW="/system/bin/iw"
+
+# Always ensure MTK Wi-Fi driver is awake
+if [ -e /dev/wmtWifi ]; then
+    echo 1 > /dev/wmtWifi 2>/dev/null
+fi
+
+case "$*" in
+    *"interface add"*"ap0"*|*"interface add ap0"*)
+        # If ap0 already exists in kernel netdevs, return 0 immediately
+        if [ -d "/sys/class/net/ap0" ]; then
+            exit 0
+        fi
+        # Execute real iw to create ap0
+        "$REAL_IW" "$@" 2>/dev/null
+        rc=$?
+        if [ $rc -eq 0 ] || [ -d "/sys/class/net/ap0" ]; then
+            exit 0
+        fi
+        # If driver needed a split second to settle, retry once
+        if [ -e /dev/wmtWifi ]; then
+            echo 1 > /dev/wmtWifi 2>/dev/null
+            sleep 0.3
+        fi
+        "$REAL_IW" "$@" 2>/dev/null
+        if [ -d "/sys/class/net/ap0" ]; then
+            exit 0
+        fi
+        exit $rc
+        ;;
+    *"dev ap0 del"*)
+        # App deletes ap0 before re-adding. We run real del or ignore if not exists.
+        "$REAL_IW" "$@" 2>/dev/null || true
+        exit 0
+        ;;
+    *"dev ap0 info"*)
+        if [ -d "/sys/class/net/ap0" ]; then
+            "$REAL_IW" "$@" 2>/dev/null && exit 0
+            echo "Interface ap0"
+            echo "    type AP"
+            echo "    wiphy 0"
+            exit 0
+        fi
+        exec "$REAL_IW" "$@"
+        ;;
+    *)
+        exec "$REAL_IW" "$@"
+        ;;
+esac
