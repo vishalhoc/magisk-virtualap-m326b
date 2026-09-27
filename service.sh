@@ -53,20 +53,12 @@ MODDIR="${0%/*}"
         if ! pgrep -f "httpd.*8088" >/dev/null 2>&1; then
             /data/adb/magisk/busybox httpd -p 0.0.0.0:8088 -h /data/local/virtualap/web
         fi
-
-        # 5. Pre-create ap0 virtual AP interface if Wi-Fi is active and ap0 does not exist
-        if [ ! -d "/sys/class/net/ap0" ] && [ -f "/data/local/virtualap/bin/iw" ]; then
-            if cmd wifi status 2>/dev/null | grep -qi "enabled"; then
-                /data/local/virtualap/bin/iw dev wlan0 interface add ap0 type __ap 2>/dev/null || \
-                /data/local/virtualap/bin/iw phy phy0 interface add ap0 type __ap 2>/dev/null || true
-            fi
-        fi
     }
 
     # Autostart AP function
     check_autostart() {
         if [ -f "/data/local/virtualap/autostart.conf" ] && grep -q '^AUTOSTART_ENABLED=1' "/data/local/virtualap/autostart.conf"; then
-            if ! pgrep -f "hostapd.*ap0" >/dev/null 2>&1 && ! pgrep -f "hostapd.*swlan0" >/dev/null 2>&1; then
+            if ! pgrep -f "hostapd.*ap0" >/dev/null 2>&1; then
                 sleep 4
                 /data/local/virtualap/start-ap start >/data/local/virtualap/logs/autostart.log 2>&1
             fi

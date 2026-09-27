@@ -512,7 +512,7 @@ teardown() {
         [ "$prev_fwd" = "0" ] && $ECHO 0 > /proc/sys/net/ipv4/ip_forward 2>/dev/null
     fi
 
-    # Bring down the virtual interface and flush IP address (retain netdev for reliable fast reuse)
+    # Bring down the AP interface and flush IP address (retain netdev for reliable fast reuse)
     "$IP" link set "$AP_IFACE" down 2>/dev/null || true
     "$IP" addr flush dev "$AP_IFACE" 2>/dev/null || true
 
@@ -523,65 +523,37 @@ teardown() {
 
 # --- Setup ---
 
-# Create the ap0 virtual interface on the physical Wi-Fi chip (both modes).
+# Create the ap0 virtual interface on the physical Wi-Fi chip (wlan0).
 create_ap_iface() {
     log "Ensuring virtual AP interface '$AP_IFACE' exists on $PHY_IFACE..."
 
-    # 1. Ensure Wi-Fi radio is UP, enabled, and ready (u4ReadyFlag == 1)
-    local wifi_status
-    wifi_status=$(cmd wifi status 2>/dev/null || true)
-    if [ ! -d "/sys/class/net/$PHY_IFACE" ] || echo "$wifi_status" | $GREP -qi "disabled"; then
-        log "Wi-Fi radio is disabled or down. Enabling Wi-Fi radio..."
-        cmd wifi set-wifi-enabled enabled 2>/dev/null || svc wifi enable 2>/dev/null
-        for i in 1 2 3 4 5 6 7 8; do
-            $SLEEP 1
-            wifi_status=$(cmd wifi status 2>/dev/null || true)
-            if [ -d "/sys/class/net/$PHY_IFACE" ] && ! echo "$wifi_status" | $GREP -qi "disabled"; then
-                break
-            fi
-        done
-        $SLEEP 1
-    fi
-
-    # 2. If interface already exists, reuse it directly
+    # 1. If AP interface already exists, reuse it directly
     if [ -d "/sys/class/net/$AP_IFACE" ] || "$IW" dev "$AP_IFACE" info >/dev/null 2>&1; then
         log "Virtual AP interface '$AP_IFACE' already exists, reusing."
         "$IP" link set "$AP_IFACE" up 2>/dev/null || true
         return 0
     fi
 
-    # 3. Check if pre-allocated SAP interface swlan0 exists or requested
-    if [ "$AP_IFACE" = "swlan0" ] || [ -d "/sys/class/net/swlan0" ]; then
-        log "Using MediaTek pre-allocated SAP interface 'swlan0'."
-        AP_IFACE="swlan0"
-        "$IP" link set swlan0 up 2>/dev/null || true
+    "$IW" dev "$AP_IFACE" del 2>/dev/null || true
+
+    # 2. Attempt to create ap0 via physical interface dev
+    log "Attempting to create $AP_IFACE via iw dev $PHY_IFACE..."
+    if "$IW" dev "$PHY_IFACE" interface add "$AP_IFACE" type __ap 2>/dev/null; then
+        log "AP interface '$AP_IFACE' created via dev $PHY_IFACE."
+        "$IP" link set "$AP_IFACE" up 2>/dev/null || true
         return 0
     fi
 
-    # 4. Attempt to create ap0 via physical interface
-    log "Attempting to create $AP_IFACE via iw dev $PHY_IFACE..."
-    if ! "$IW" dev "$PHY_IFACE" interface add "$AP_IFACE" type __ap 2>/dev/null; then
-        # MediaTek / SoC fallback: add directly to wiphy
-        local phy_name="phy0"
-        if [ -d "/sys/class/net/$PHY_IFACE/phy80211" ]; then
-            phy_name=$($CAT "/sys/class/net/$PHY_IFACE/phy80211/name" 2>/dev/null || $ECHO "phy0")
-        fi
-        log "Attempting to create $AP_IFACE via iw phy $phy_name..."
-        if ! "$IW" phy "$phy_name" interface add "$AP_IFACE" type __ap 2>/dev/null; then
-            # 5. MediaTek SAP fallback: initialize swlan0
-            warn "Could not create $AP_IFACE directly. Initializing MediaTek swlan0..."
-            cmd wifi start-softap __vap_init wpa2 __vap_pass123 2>/dev/null || true
-            $SLEEP 1
-            cmd wifi stop-softap 2>/dev/null || true
-            if [ -d "/sys/class/net/swlan0" ]; then
-                log "Successfully initialized and switched to swlan0 interface."
-                AP_IFACE="swlan0"
-                "$IP" link set swlan0 up 2>/dev/null || true
-                return 0
-            fi
-            error "Failed to create $AP_IFACE - chip/driver may not support AP mode."
-            return 1
-        fi
+    # 3. Fallback to iw phy
+    local phy_name="phy0"
+    if [ -d "/sys/class/net/$PHY_IFACE/phy80211" ]; then
+        phy_name=$($CAT "/sys/class/net/$PHY_IFACE/phy80211/name" 2>/dev/null || $ECHO "phy0")
+    fi
+    log "Attempting to create $AP_IFACE via iw phy $phy_name..."
+    if "$IW" phy "$phy_name" interface add "$AP_IFACE" type __ap 2>/dev/null; then
+        log "AP interface '$AP_IFACE' created via phy $phy_name."
+        "$IP" link set "$AP_IFACE" up 2>/dev/null || true
+        return 0
     fi
 
     if [ -d "/sys/class/net/$AP_IFACE" ] || "$IW" dev "$AP_IFACE" info >/dev/null 2>&1; then
@@ -590,14 +562,7 @@ create_ap_iface() {
         return 0
     fi
 
-    if [ -d "/sys/class/net/swlan0" ]; then
-        warn "Falling back to swlan0 interface."
-        AP_IFACE="swlan0"
-        "$IP" link set swlan0 up 2>/dev/null || true
-        return 0
-    fi
-
-    error "$AP_IFACE was not created successfully"
+    error "Failed to create $AP_IFACE on $PHY_IFACE"
     return 1
 }
 
@@ -605,8 +570,8 @@ config_network() {
     create_ap_iface || return 1
 
     log "Configuring gateway address $IP_GW..."
-    "$IP" link set "$AP_IFACE" down 2>/dev/null
-    "$IP" addr flush dev "$AP_IFACE" 2>/dev/null
+    "$IP" link set "$AP_IFACE" down 2>/dev/null || true
+    "$IP" addr flush dev "$AP_IFACE" 2>/dev/null || true
     "$IP" addr add "$IP_GW/24" dev "$AP_IFACE" || { error "Failed to assign $IP_GW"; return 1; }
     "$IP" link set "$AP_IFACE" up || { error "Failed to bring up $AP_IFACE"; return 1; }
 
@@ -633,8 +598,9 @@ config_network() {
 
     # Upstream steering: everything FROM the AP clients goes to the selected
     # network's table
+    "$IP" rule del pref "$PRIO_FROM_AP" 2>/dev/null || true
     "$IP" rule add from all iif "$AP_IFACE" lookup "$UPSTREAM_TABLE" pref "$PRIO_FROM_AP" \
-        || { error "Failed to add upstream steering rule (table $UPSTREAM_TABLE)"; return 1; }
+        || warn "from-ap rule already present"
 
     # Firewall: scope to ap0 only; interface-less MASQUERADE survives
     # upstream changes (Docker/LXC style)
@@ -833,14 +799,17 @@ EOF
 
     log "Starting dnsmasq..."
     : > "$DNSMASQ_LOG" 2>/dev/null
-    if ! "$DNSMASQ" -C "$RUN_DIR/dnsmasq.conf"; then
+    if ! "$DNSMASQ" -C "$RUN_DIR/dnsmasq.conf" 2>>"$DNSMASQ_LOG"; then
         error "dnsmasq failed to start"
         return 1
     fi
     $SLEEP 1
-    [ -f "$RUN_DIR/dnsmasq.pid" ] && $KILL -0 "$($CAT "$RUN_DIR/dnsmasq.pid")" 2>/dev/null || {
-        error "dnsmasq is not running after start"; return 1; }
-    log "dnsmasq running (PID $($CAT "$RUN_DIR/dnsmasq.pid" 2>/dev/null))"
+    if [ -f "$RUN_DIR/dnsmasq.pid" ] && $KILL -0 "$($CAT "$RUN_DIR/dnsmasq.pid")" 2>/dev/null; then
+        log "dnsmasq running (PID $($CAT "$RUN_DIR/dnsmasq.pid" 2>/dev/null))"
+    else
+        error "dnsmasq is not running after start"
+        return 1
+    fi
 
     return 0
 }
@@ -1100,6 +1069,7 @@ cmd_status() {
 
     if [ -f "$STATE_FILE" ]; then
         [ -f "$RUN_DIR/hostapd.pid" ] && $KILL -0 "$($CAT "$RUN_DIR/hostapd.pid")" 2>/dev/null && hostapd_state="running"
+        [ "$hostapd_state" = "dead" ] && pgrep -f "hostapd.*ap0" >/dev/null 2>&1 && hostapd_state="running"
         if [ "$mode" = "bridged" ]; then
             dnsmasq_state="container"   # DHCP/DNS served by the container, not us
         else
@@ -1138,9 +1108,17 @@ cmd_status() {
     fi
     # gateway/ssid/etc. come from the state file (IP_GW in both routed + bridged)
     if [ -f "$STATE_FILE" ]; then
-        $GREP -E '^(ssid|band|channel|upstream|upstream_table|upstream_iface|gateway|dns_servers|container|started)=' "$STATE_FILE"
+        while IFS='=' read -r sk sv; do
+            case "$sk" in
+                ssid|band|channel|upstream|upstream_table|upstream_iface|gateway|dns_servers|container|started)
+                    sv="${sv%\"}"
+                    sv="${sv#\"}"
+                    $ECHO "$sk=\"$sv\""
+                    ;;
+            esac
+        done < "$STATE_FILE"
     else
-        $ECHO "gateway=$IP_GW"
+        $ECHO "gateway=\"$IP_GW\""
     fi
 }
 

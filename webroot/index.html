@@ -3,47 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VirtualAP Control Panel | Samsung M32 5G</title>
+    <title>VirtualAP & Connectivity Hub | Samsung Galaxy M32 5G</title>
     <style>
         :root {
-            --bg-body: #0b0f19;
-            --bg-card: #151d30;
-            --bg-card-hover: #1c263e;
-            --bg-input: #0a0e17;
-            --border: #263554;
+            --bg-body: #090d16;
+            --bg-card: #131a2b;
+            --bg-card-hover: #19233a;
+            --bg-input: #0b101c;
+            --border: #222f4b;
             --border-focus: #38bdf8;
             --accent-cyan: #38bdf8;
             --accent-green: #10b981;
             --accent-red: #ef4444;
             --accent-amber: #f59e0b;
+            --accent-purple: #a855f7;
             --text-main: #f1f5f9;
             --text-muted: #94a3b8;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background: var(--bg-body); color: var(--text-main); padding: 14px; min-height: 100vh; }
-        .container { max-width: 800px; margin: 0 auto; }
-        
-        /* Toast notification */
+        .container { max-width: 900px; margin: 0 auto; }
+
+        /* Toast */
         #toast {
             position: fixed; top: 16px; left: 50%; transform: translateX(-50%) translateY(-100px);
             background: #1e293b; color: #fff; padding: 12px 24px; border-radius: 9999px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid var(--border-focus);
-            font-size: 0.88rem; font-weight: 600; z-index: 1000; transition: transform 0.3s ease;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.6); border: 1px solid var(--border-focus);
+            font-size: 0.88rem; font-weight: 600; z-index: 2000; transition: transform 0.3s ease;
             display: flex; align-items: center; gap: 8px;
         }
         #toast.show { transform: translateX(-50%) translateY(0); }
 
         /* Header */
-        header { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 8px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
         .brand h1 { font-size: 1.35rem; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
         .brand p { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
         .header-actions { display: flex; align-items: center; gap: 10px; }
         .btn-refresh {
             background: var(--bg-card); color: var(--accent-cyan); border: 1px solid var(--border);
-            padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
-            display: flex; align-items: center; gap: 6px;
+            padding: 6px 14px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+            display: flex; align-items: center; gap: 6px; transition: border-color 0.2s;
         }
         .btn-refresh:hover { border-color: var(--accent-cyan); }
+
+        /* Nav Tabs */
+        .nav-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 10px; overflow-x: auto; }
+        .nav-tab {
+            background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border);
+            padding: 9px 18px; border-radius: 10px; font-size: 0.86rem; font-weight: 600; cursor: pointer;
+            white-space: nowrap; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+        }
+        .nav-tab:hover { background: var(--bg-card-hover); color: #fff; }
+        .nav-tab.active { background: #1e293b; color: var(--accent-cyan); border-color: var(--accent-cyan); }
+
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
         /* Badges */
         .status-badge {
@@ -59,22 +75,22 @@
 
         /* Grid */
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
-        @media (max-width: 680px) { .grid-2 { grid-template-columns: 1fr; } }
-        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
-        .card-title { font-size: 0.92rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        @media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+        .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+        .card-title { font-size: 0.94rem; font-weight: 700; color: var(--accent-cyan); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
 
         /* Info rows */
-        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.84rem; }
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.84rem; }
         .stat-row:last-child { border-bottom: none; }
         .stat-label { color: var(--text-muted); }
         .stat-val { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #fff; }
 
         /* Forms */
         .form-row { margin-bottom: 12px; }
-        label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+        label { display: block; font-size: 0.74rem; font-weight: 700; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
         input, select {
             width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: #fff;
-            border-radius: 8px; padding: 9px 12px; font-size: 0.88rem; transition: border-color 0.2s;
+            border-radius: 8px; padding: 8px 12px; font-size: 0.86rem; transition: border-color 0.2s;
         }
         input:focus, select:focus { outline: none; border-color: var(--border-focus); }
         .input-hint { font-size: 0.72rem; color: var(--text-muted); margin-top: 3px; }
@@ -82,7 +98,7 @@
         /* Buttons */
         .action-row { display: flex; gap: 10px; margin-top: 14px; }
         button.btn-ctrl {
-            flex: 1; padding: 11px 14px; border-radius: 8px; font-weight: 700; font-size: 0.88rem;
+            flex: 1; padding: 10px 14px; border-radius: 8px; font-weight: 700; font-size: 0.88rem;
             cursor: pointer; border: none; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
         }
         .btn-start { background: var(--accent-green); color: #052e16; }
@@ -91,189 +107,535 @@
         .btn-stop:hover { filter: brightness(1.1); }
         .btn-restart { background: #3b82f6; color: #fff; }
         .btn-restart:hover { filter: brightness(1.1); }
+        .btn-save { background: #6366f1; color: #fff; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; }
         button:disabled { opacity: 0.5; cursor: not-allowed; filter: none !important; box-shadow: none !important; }
 
-        /* Table */
+        /* Switches */
+        .switch-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        .switch-row:last-child { border-bottom: none; }
+        .switch-info { flex: 1; padding-right: 12px; }
+        .switch-title { font-size: 0.86rem; font-weight: 600; color: #fff; }
+        .switch-desc { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #263554; transition: .3s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent-green); }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        /* Tables */
         .client-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin-top: 8px; }
-        .client-table th { text-align: left; padding: 8px; color: var(--text-muted); font-size: 0.75rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        .client-table th { text-align: left; padding: 8px; color: var(--text-muted); font-size: 0.74rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
         .client-table td { padding: 9px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-        .client-active { color: var(--accent-green); font-size: 0.75rem; font-weight: 700; background: rgba(16, 185, 129, 0.1); padding: 2px 6px; border-radius: 4px; }
+        .client-active { color: var(--accent-green); font-size: 0.74rem; font-weight: 700; background: rgba(16, 185, 129, 0.1); padding: 2px 6px; border-radius: 4px; }
 
         /* Logs */
         .log-box {
             background: #050811; border-radius: 8px; padding: 12px; font-family: ui-monospace, monospace;
             font-size: 0.74rem; color: #86efac; height: 160px; overflow-y: auto; white-space: pre-wrap; line-height: 1.4; border: 1px solid var(--border);
         }
-        .tab-bar { display: flex; gap: 6px; margin-bottom: 8px; }
-        .tab {
-            background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: 5px 12px;
-            font-size: 0.75rem; border-radius: 6px; cursor: pointer; font-weight: 600;
+        .log-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+        .log-tab {
+            background: transparent; color: var(--text-muted); border: 1px solid var(--border); padding: 4px 10px;
+            font-size: 0.74rem; border-radius: 6px; cursor: pointer; font-weight: 600;
         }
-        .tab.active { background: var(--border); color: #fff; }
+        .log-tab.active { background: var(--border); color: #fff; }
+
+        /* Traffic Meter */
+        .meter-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px; }
+        @media (max-width: 600px) { .meter-grid { grid-template-columns: 1fr; } }
+        .meter-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
+        .meter-num { font-size: 1.25rem; font-weight: 700; color: #fff; font-family: ui-monospace, monospace; margin-top: 4px; }
+        .meter-lbl { font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; }
     </style>
 </head>
 <body>
     <div id="toast">✅ Action Completed</div>
 
     <div class="container">
+        <!-- Top Header -->
         <header>
             <div class="brand">
-                <h1>📡 VirtualAP Control Panel</h1>
+                <h1>📡 VirtualAP & Connectivity Hub</h1>
                 <p>Samsung Galaxy M32 5G (SM-M326B / Dimensity 720)</p>
             </div>
             <div class="header-actions">
-                <button class="btn-refresh" onclick="refreshAll(true)">🔄 Refresh</button>
-                <div id="statusBadge" class="status-badge stopped">
-                    <span class="dot"></span>
-                    <span id="statusText">STOPPED</span>
-                </div>
+                <button class="btn-refresh" onclick="refreshCurrentTab(true)">🔄 Refresh</button>
             </div>
         </header>
 
-        <div class="grid-2">
-            <!-- Left: Real-time Live Status -->
-            <div class="card">
-                <div class="card-title">📊 Live Engine Status</div>
-                <div class="stat-row"><span class="stat-label">Wi-Fi SSID</span><span class="stat-val" id="lblSSID">-</span></div>
-                <div class="stat-row"><span class="stat-label">Physical Interface</span><span class="stat-val" id="lblPhy">-</span></div>
-                <div class="stat-row"><span class="stat-label">Virtual AP Interface</span><span class="stat-val" id="lblApDev">-</span></div>
-                <div class="stat-row"><span class="stat-label">Upstream Table</span><span class="stat-val" id="lblUpstreamTable" style="color:var(--accent-cyan);">-</span></div>
-                <div class="stat-row"><span class="stat-label">Band / Channel</span><span class="stat-val" id="lblBandChan">-</span></div>
-                <div class="stat-row"><span class="stat-label">Channel Width</span><span class="stat-val" id="lblWidth">-</span></div>
-                <div class="stat-row"><span class="stat-label">AP Gateway</span><span class="stat-val" id="lblGateway">-</span></div>
-                <div class="stat-row"><span class="stat-label">Connected Devices</span><span class="stat-val" id="lblClients" style="color:var(--accent-green); font-size:1rem;">0</span></div>
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchNav('tab-vap', this)">📡 Virtual AP</button>
+            <button class="nav-tab" onclick="switchNav('tab-hotspot', this)">🔥 Mobile Hotspot</button>
+            <button class="nav-tab" onclick="switchNav('tab-usb', this)">🔌 USB Tethering</button>
+            <button class="nav-tab" onclick="switchNav('tab-ethernet', this)">🌐 Ethernet</button>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- TAB 1: VIRTUAL AP -->
+        <!-- ================================================================= -->
+        <div id="tab-vap" class="tab-content active">
+            <div class="grid-2">
+                <!-- Left: Live Status -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>📊 Live AP Engine</span>
+                        <div id="vapStatusBadge" class="status-badge stopped">
+                            <span class="dot"></span>
+                            <span id="vapStatusText">STOPPED</span>
+                        </div>
+                    </div>
+                    <div class="stat-row"><span class="stat-label">Wi-Fi SSID</span><span class="stat-val" id="lblVapSSID">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Physical Radio</span><span class="stat-val" id="lblVapPhy">-</span></div>
+                    <div class="stat-row"><span class="stat-label">AP Mode</span><span class="stat-val" id="lblVapApDev">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Upstream Table</span><span class="stat-val" id="lblVapUpstream" style="color:var(--accent-cyan);">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Band / Channel</span><span class="stat-val" id="lblVapBandChan">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Channel Width</span><span class="stat-val" id="lblVapWidth">-</span></div>
+                    <div class="stat-row"><span class="stat-label">AP Gateway</span><span class="stat-val" id="lblVapGateway">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Connected Devices</span><span class="stat-val" id="lblVapClients" style="color:var(--accent-green); font-size:1.05rem;">0</span></div>
+                </div>
+
+                <!-- Right: Configuration & Controls -->
+                <div class="card">
+                    <div class="card-title">⚙️ Interface & Wi-Fi Settings</div>
+
+                    <!-- Autostart Toggle -->
+                    <div class="switch-row" style="padding-top:0;">
+                        <div class="switch-info">
+                            <div class="switch-title">Auto-enable on Boot & Unlock</div>
+                            <div class="switch-desc">Start VirtualAP automatically after phone starts and unlocks</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkAutostart" onchange="toggleAutostart(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="form-row" style="margin-top:10px;">
+                        <label>1. Physical Wi-Fi Interface</label>
+                        <select id="selPhyIface">
+                            <option value="wlan0">wlan0 (Built-in MediaTek Wi-Fi)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <label>2. Virtual AP Interface</label>
+                        <select id="selApIface">
+                            <option value="ap0">ap0 (Virtual AP — Direct Wireless Interface)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <label>3. Upstream Internet Source</label>
+                        <select id="selUpstream">
+                            <option value="auto">auto (Default Route / 464XLAT / Mobile Data)</option>
+                            <option value="v4-rmnet0">v4-rmnet0 (Mobile Data IPv4 CLAT)</option>
+                            <option value="rmnet0">rmnet0 (Cellular Direct)</option>
+                            <option value="wlan0">wlan0 (Wi-Fi STA Repeater)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                        <div class="form-row">
+                            <label>SSID Name</label>
+                            <input type="text" id="txtVapSSID" value="hoc">
+                        </div>
+                        <div class="form-row">
+                            <label>Password</label>
+                            <input type="text" id="txtVapPass" value="1234567890">
+                        </div>
+                    </div>
+
+                    <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                        <div class="form-row">
+                            <label>Band</label>
+                            <select id="selVapBand" onchange="updateChannelList()">
+                                <option value="5">5 GHz (High Speed)</option>
+                                <option value="2">2.4 GHz (Long Range)</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Channel</label>
+                            <select id="selVapChannel"></select>
+                        </div>
+                    </div>
+
+                    <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                        <div class="form-row">
+                            <label>Channel Width</label>
+                            <select id="selVapWidth">
+                                <option value="20">20 MHz (Standard)</option>
+                                <option value="40">40 MHz (HT40 High Throughput)</option>
+                                <option value="80">80 MHz (VHT80 Maximum 5GHz)</option>
+                                <option value="auto">auto (Radio Optimal)</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Security Mode</label>
+                            <select id="selVapSecurity">
+                                <option value="wpa2">WPA2-PSK (AES)</option>
+                                <option value="wpa2wpa3">WPA2/WPA3 Mixed</option>
+                                <option value="wpa3">WPA3-SAE</option>
+                                <option value="open">Open (No Password)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                        <div class="form-row">
+                            <label>Gateway IP</label>
+                            <input type="text" id="txtVapGW" value="192.168.233.218">
+                        </div>
+                        <div class="form-row">
+                            <label>DNS Server</label>
+                            <input type="text" id="txtVapDNS" value="1.1.1.1">
+                        </div>
+                    </div>
+
+                    <div class="action-row">
+                        <button id="btnVapStart" class="btn-ctrl btn-start" onclick="applyVapStart()">▶ Start AP</button>
+                        <button id="btnVapStop" class="btn-ctrl btn-stop" onclick="applyVapStop()">⏹ Stop</button>
+                        <button id="btnVapRestart" class="btn-ctrl btn-restart" onclick="applyVapStart()">🔄 Restart</button>
+                    </div>
+                </div>
             </div>
 
-            <!-- Right: Settings & Interface Selection -->
+            <!-- Connected Clients -->
             <div class="card">
-                <div class="card-title">⚙️ Interface & Wi-Fi Settings</div>
-                
-                <div class="form-row">
-                    <label>1. Physical Wi-Fi Interface</label>
-                    <select id="selPhyIface">
-                        <option value="wlan0">wlan0 (Built-in MediaTek Wi-Fi)</option>
-                    </select>
-                    <div class="input-hint">The hardware Wi-Fi chip radio to create the hotspot on.</div>
+                <div class="card-title">📱 Connected Clients (Virtual AP)</div>
+                <table class="client-table">
+                    <thead>
+                        <tr><th>Device Name</th><th>IP Address</th><th>MAC Address</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="vapClientsList">
+                        <tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">Scanning connected devices...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Logs -->
+            <div class="card">
+                <div class="card-title">📋 Live Diagnostics & Logs</div>
+                <div class="log-tabs">
+                    <button class="log-tab active" onclick="setLogTab('hostapd', this)">hostapd</button>
+                    <button class="log-tab" onclick="setLogTab('dnsmasq', this)">dnsmasq</button>
+                    <button class="log-tab" onclick="setLogTab('ap', this)">ap.log</button>
+                    <button class="log-tab" onclick="setLogTab('system', this)">system</button>
+                </div>
+                <div id="logOutput" class="log-box">Loading logs...</div>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- TAB 2: MOBILE HOTSPOT -->
+        <!-- ================================================================= -->
+        <div id="tab-hotspot" class="tab-content">
+            <div class="grid-2">
+                <!-- Status & Control -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>🔥 Native Mobile Hotspot</span>
+                        <div id="hsStatusBadge" class="status-badge stopped">
+                            <span class="dot"></span>
+                            <span id="hsStatusText">STOPPED</span>
+                        </div>
+                    </div>
+                    <div class="stat-row"><span class="stat-label">Hotspot SSID</span><span class="stat-val" id="lblHsSSID">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Security Type</span><span class="stat-val" id="lblHsSec">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Operating Band</span><span class="stat-val" id="lblHsBand">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Max Allowed Clients</span><span class="stat-val" id="lblHsMax">10</span></div>
+                    <div class="stat-row"><span class="stat-label">Wi-Fi 6 (802.11ax)</span><span class="stat-val" id="lblHsAx" style="color:var(--accent-green);">-</span></div>
+
+                    <div class="action-row" style="margin-top:16px;">
+                        <button id="btnHsToggle" class="btn-ctrl btn-start" onclick="toggleHotspot()">🔥 Toggle Hotspot</button>
+                    </div>
                 </div>
 
-                <div class="form-row">
-                    <label>2. Virtual AP Interface Mode</label>
-                    <select id="selApIface">
-                        <option value="ap0">ap0 (Virtual AP — Wi-Fi + AP Concurrency)</option>
-                        <option value="swlan0">swlan0 (Samsung Pre-allocated SAP)</option>
-                    </select>
-                </div>
+                <!-- Kernel & Carrier Tethering Controls -->
+                <div class="card">
+                    <div class="card-title">🛡️ Carrier Bypass & Kernel Settings</div>
+                    
+                    <div class="switch-row">
+                        <div class="switch-info">
+                            <div class="switch-title">Carrier DUN & Entitlement Bypass</div>
+                            <div class="switch-desc">Bypass mobile carrier hotspot data limits & throttling (tether_dun_required=0)</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkDunBypass" onchange="toggleDun(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
 
-                <div class="form-row">
-                    <label>3. Upstream Internet Source</label>
-                    <select id="selUpstream">
-                        <option value="auto">auto (Auto 464XLAT Cellular v4-rmnet0 / Wi-Fi)</option>
-                        <option value="v4-rmnet0">v4-rmnet0 (Mobile Data IPv4 CLAT)</option>
-                        <option value="rmnet0">rmnet0 (Cellular Direct)</option>
-                        <option value="wlan0">wlan0 (Wi-Fi STA Repeater)</option>
-                    </select>
-                </div>
+                    <div class="switch-row">
+                        <div class="switch-info">
+                            <div class="switch-title">Kernel IP Packet Forwarding</div>
+                            <div class="switch-desc">Allows kernel to route IPv4 packets between cellular/Wi-Fi and hotspot</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkIpFwd" onchange="toggleIpFwd(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
 
-                <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                    <div class="switch-row">
+                        <div class="switch-info">
+                            <div class="switch-title">BPF Hardware Tethering Offload</div>
+                            <div class="switch-desc">Hardware-accelerated packet forwarding directly in kernel BPF engine</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkBpfOffload" onchange="toggleBpfOffload(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SoftAP Config Editor -->
+            <div class="card">
+                <div class="card-title">
+                    <span>⚙️ Configure Android Hotspot (SoftAp)</span>
+                    <button class="btn-save" onclick="saveHotspotConfig()">💾 Save Config</button>
+                </div>
+                <div class="grid-2" style="margin-bottom:0;">
                     <div class="form-row">
-                        <label>SSID Name</label>
-                        <input type="text" id="txtSSID" value="hoc">
+                        <label>Hotspot SSID Name</label>
+                        <input type="text" id="txtHsSSID" value="Galaxy M32 5G">
                     </div>
                     <div class="form-row">
-                        <label>WPA2 Password</label>
-                        <input type="text" id="txtPass" value="1234567890">
+                        <label>Passphrase</label>
+                        <input type="text" id="txtHsPass" value="1234567890">
                     </div>
                 </div>
-
-                <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                <div class="grid-2" style="margin-bottom:0;">
                     <div class="form-row">
-                        <label>Band</label>
-                        <select id="selBand" onchange="updateChannelList()">
-                            <option value="5">5 GHz (High Speed)</option>
-                            <option value="2">2.4 GHz (Long Range)</option>
+                        <label>Preferred Band</label>
+                        <select id="selHsBand">
+                            <option value="2">5 GHz Preferred / Dual-Band</option>
+                            <option value="1">2.4 GHz Only</option>
                         </select>
                     </div>
                     <div class="form-row">
-                        <label>Channel</label>
-                        <select id="selChannel">
-                            <option value="44">44 (5 GHz)</option>
-                            <option value="36">36 (5 GHz)</option>
-                            <option value="40">40 (5 GHz)</option>
-                            <option value="48">48 (5 GHz)</option>
-                            <option value="149">149 (5 GHz)</option>
+                        <label>Max Clients Limit</label>
+                        <select id="selHsMaxClients">
+                            <option value="10">10 Devices (Default)</option>
+                            <option value="8">8 Devices</option>
+                            <option value="5">5 Devices</option>
+                            <option value="0">Unlimited</option>
                         </select>
                     </div>
                 </div>
+            </div>
 
-                <div class="action-row">
-                    <button id="btnStart" class="btn-ctrl btn-start" onclick="applyStart()">▶ Start AP</button>
-                    <button id="btnStop" class="btn-ctrl btn-stop" onclick="applyStop()">⏹ Stop</button>
-                    <button id="btnRestart" class="btn-ctrl btn-restart" onclick="applyStart()">🔄 Restart</button>
+            <!-- Hotspot Clients -->
+            <div class="card">
+                <div class="card-title">📱 Connected Clients (Mobile Hotspot)</div>
+                <table class="client-table">
+                    <thead>
+                        <tr><th>IP Address</th><th>MAC Address</th><th>Status</th></tr>
+                    </thead>
+                    <tbody id="hsClientsList">
+                        <tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:16px;">No devices connected</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ================================================================= -->
+        <!-- TAB 3: USB TETHERING -->
+        <!-- ================================================================= -->
+        <div id="tab-usb" class="tab-content">
+            <div class="grid-2">
+                <!-- Status & Control -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>🔌 USB Tethering Status</span>
+                        <div id="usbStatusBadge" class="status-badge stopped">
+                            <span class="dot"></span>
+                            <span id="usbStatusText">STOPPED</span>
+                        </div>
+                    </div>
+                    <div class="stat-row"><span class="stat-label">USB Cable Connection</span><span class="stat-val" id="lblUsbConn">-</span></div>
+                    <div class="stat-row"><span class="stat-label">USB Hardware Speed</span><span class="stat-val" id="lblUsbSpeed" style="color:var(--accent-cyan);">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Active Network Interface</span><span class="stat-val" id="lblUsbIface">rndis0</span></div>
+                    <div class="stat-row"><span class="stat-label">Assigned IP Address</span><span class="stat-val" id="lblUsbIP">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Interface MTU</span><span class="stat-val" id="lblUsbMTU">1500</span></div>
+
+                    <div class="action-row" style="margin-top:16px;">
+                        <button id="btnUsbStart" class="btn-ctrl btn-start" onclick="toggleUsb(true)">▶ Enable USB Tethering</button>
+                        <button id="btnUsbStop" class="btn-ctrl btn-stop" onclick="toggleUsb(false)">⏹ Disable</button>
+                    </div>
+                </div>
+
+                <!-- Gadget Mode & MTU Tuning -->
+                <div class="card">
+                    <div class="card-title">⚙️ Gadget Protocol & MTU Tuning</div>
+                    
+                    <div class="form-row">
+                        <label>USB Gadget Protocol Mode</label>
+                        <select id="selUsbMode">
+                            <option value="rndis">RNDIS (Windows / Linux / macOS)</option>
+                            <option value="ncm">NCM (High-Throughput Native CDC-NCM)</option>
+                        </select>
+                        <div class="input-hint">RNDIS is universally compatible. NCM provides lower latency and higher speeds.</div>
+                    </div>
+
+                    <div class="form-row" style="margin-top:14px;">
+                        <label>Network MTU (Bytes)</label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="number" id="txtUsbMTU" value="1500" min="1280" max="9000">
+                            <button class="btn-save" onclick="applyUsbMTU()">Apply</button>
+                        </div>
+                        <div class="input-hint">Default 1500. Lower to 1420-1440 for gaming, or 9000 for jumbo frames.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Traffic Meter -->
+            <div class="card">
+                <div class="card-title">📊 Live USB Data Throughput</div>
+                <div class="meter-grid">
+                    <div class="meter-card">
+                        <div class="meter-lbl">Download (RX)</div>
+                        <div class="meter-num" id="lblUsbRx" style="color:var(--accent-green);">0 MB</div>
+                    </div>
+                    <div class="meter-card">
+                        <div class="meter-lbl">Upload (TX)</div>
+                        <div class="meter-num" id="lblUsbTx" style="color:var(--accent-cyan);">0 MB</div>
+                    </div>
+                    <div class="meter-card">
+                        <div class="meter-lbl">Total Packets</div>
+                        <div class="meter-num" id="lblUsbPkts" style="color:var(--accent-purple);">0</div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Connected Clients -->
-        <div class="card" style="margin-bottom:16px;">
-            <div class="card-title">📱 Connected Clients</div>
-            <table class="client-table">
-                <thead>
-                    <tr><th>Device Name</th><th>IP Address</th><th>MAC Address</th><th>Status</th></tr>
-                </thead>
-                <tbody id="clientsList">
-                    <tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">Scanning connected devices...</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <!-- ================================================================= -->
+        <!-- TAB 4: ETHERNET -->
+        <!-- ================================================================= -->
+        <div id="tab-ethernet" class="tab-content">
+            <div class="grid-2">
+                <!-- Adapter Status -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>🌐 Ethernet Adapter</span>
+                        <div id="ethStatusBadge" class="status-badge stopped">
+                            <span class="dot"></span>
+                            <span id="ethStatusText">NO ADAPTER</span>
+                        </div>
+                    </div>
+                    <div class="stat-row"><span class="stat-label">Adapter Detected</span><span class="stat-val" id="lblEthDev">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Chipset Driver</span><span class="stat-val" id="lblEthDriver">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Physical Link (Carrier)</span><span class="stat-val" id="lblEthCarrier">-</span></div>
+                    <div class="stat-row"><span class="stat-label">Link Speed / Duplex</span><span class="stat-val" id="lblEthSpeed" style="color:var(--accent-cyan);">-</span></div>
+                    <div class="stat-row"><span class="stat-label">MAC Address</span><span class="stat-val" id="lblEthMAC">-</span></div>
+                    <div class="stat-row"><span class="stat-label">IP Address</span><span class="stat-val" id="lblEthIP">-</span></div>
+                </div>
 
-        <!-- Diagnostic Logs -->
-        <div class="card">
-            <div class="card-title">📋 Live Diagnostics & Logs</div>
-            <div class="tab-bar">
-                <button class="tab active" onclick="setTab('hostapd', this)">hostapd</button>
-                <button class="tab" onclick="setTab('dnsmasq', this)">dnsmasq</button>
-                <button class="tab" onclick="setTab('system', this)">system</button>
+                <!-- Ethernet Tethering (LAN Sharing) -->
+                <div class="card">
+                    <div class="card-title">🔌 Share Internet to Ethernet (Tethering)</div>
+                    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
+                        Connect your PC, router, or switch to your phone via USB Ethernet adapter. The phone acts as a DHCP gateway (<span style="color:#fff; font-family:monospace;">192.168.100.1</span>) and shares 5G/LTE data.
+                    </p>
+                    
+                    <div class="action-row">
+                        <button id="btnEthTetherStart" class="btn-ctrl btn-start" onclick="toggleEthTether(true)">▶ Start Ethernet LAN</button>
+                        <button id="btnEthTetherStop" class="btn-ctrl btn-stop" onclick="toggleEthTether(false)">⏹ Stop</button>
+                    </div>
+                </div>
             </div>
-            <div id="logOutput" class="log-box">Loading logs...</div>
+
+            <!-- Static IP / WAN Configuration -->
+            <div class="card">
+                <div class="card-title">⚙️ Ethernet IP Configuration (Client Mode)</div>
+                <div class="grid-2" style="margin-bottom:0;">
+                    <div class="form-row">
+                        <label>IP Assignment Mode</label>
+                        <select id="selEthMode" onchange="toggleEthStaticFields()">
+                            <option value="dhcp">DHCP (Automatic IP from Router)</option>
+                            <option value="static">Static IP (Manual)</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>IP Address</label>
+                        <input type="text" id="txtEthIP" value="192.168.1.150" disabled>
+                    </div>
+                </div>
+                <div class="grid-2" style="margin-bottom:0;">
+                    <div class="form-row">
+                        <label>Gateway IP</label>
+                        <input type="text" id="txtEthGW" value="192.168.1.1" disabled>
+                    </div>
+                    <div class="form-row">
+                        <label>DNS Server</label>
+                        <input type="text" id="txtEthDNS" value="1.1.1.1" disabled>
+                    </div>
+                </div>
+                <div style="margin-top:10px; display:flex; justify-content:flex-end;">
+                    <button class="btn-save" onclick="applyEthIP()">Apply Configuration</button>
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Scripts -->
     <script>
-        let currentTab = 'hostapd';
-        let cachedLogs = { hostapd: '', dnsmasq: '', system: '' };
-        let isOperating = false;
+        let currentNavTab = 'tab-vap';
+        let currentLogTab = 'hostapd';
+        let cachedLogs = {};
+        let isBusy = false;
 
         function showToast(msg) {
             const t = document.getElementById('toast');
             t.innerText = msg;
             t.classList.add('show');
-            setTimeout(() => t.classList.remove('show'), 3000);
+            setTimeout(() => t.classList.remove('show'), 3200);
+        }
+
+        function switchNav(tabId, el) {
+            currentNavTab = tabId;
+            document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            el.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            refreshCurrentTab(false);
         }
 
         function updateChannelList() {
-            const band = document.getElementById('selBand').value;
-            const chanSel = document.getElementById('selChannel');
+            const band = document.getElementById('selVapBand').value;
+            const chanSel = document.getElementById('selVapChannel');
             const curVal = chanSel.value;
             chanSel.innerHTML = '';
 
             let channels = [];
             if (band === '5') {
                 channels = [
-                    {val: '36', text: '36 (5 GHz)'},
-                    {val: '40', text: '40 (5 GHz)'},
-                    {val: '44', text: '44 (5 GHz)'},
-                    {val: '48', text: '48 (5 GHz)'},
-                    {val: '149', text: '149 (5 GHz)'},
-                    {val: '153', text: '153 (5 GHz)'},
-                    {val: '157', text: '157 (5 GHz)'},
-                    {val: '161', text: '161 (5 GHz)'}
+                    {val: '36', text: '36 (5.180 GHz - UNII-1)'},
+                    {val: '40', text: '40 (5.200 GHz - UNII-1)'},
+                    {val: '44', text: '44 (5.220 GHz - UNII-1)'},
+                    {val: '48', text: '48 (5.240 GHz - UNII-1)'},
+                    {val: '52', text: '52 (5.260 GHz - DFS)'},
+                    {val: '56', text: '56 (5.280 GHz - DFS)'},
+                    {val: '60', text: '60 (5.300 GHz - DFS)'},
+                    {val: '64', text: '64 (5.320 GHz - DFS)'},
+                    {val: '100', text: '100 (5.500 GHz - DFS)'},
+                    {val: '104', text: '104 (5.520 GHz - DFS)'},
+                    {val: '108', text: '108 (5.540 GHz - DFS)'},
+                    {val: '112', text: '112 (5.560 GHz - DFS)'},
+                    {val: '116', text: '116 (5.580 GHz - DFS)'},
+                    {val: '120', text: '120 (5.600 GHz - DFS)'},
+                    {val: '149', text: '149 (5.745 GHz - UNII-3)'},
+                    {val: '153', text: '153 (5.765 GHz - UNII-3)'},
+                    {val: '157', text: '157 (5.785 GHz - UNII-3)'},
+                    {val: '161', text: '161 (5.805 GHz - UNII-3)'},
+                    {val: '165', text: '165 (5.825 GHz - UNII-3)'}
                 ];
             } else {
-                channels = [
-                    {val: '1', text: '1 (2.4 GHz)'},
-                    {val: '6', text: '6 (2.4 GHz)'},
-                    {val: '11', text: '11 (2.4 GHz)'}
-                ];
+                for (let i = 1; i <= 14; i++) {
+                    channels.push({val: i.toString(), text: `${i} (2.4${i === 14 ? '84' : (12 + (i-1)*5)} GHz)`});
+                }
             }
 
             channels.forEach(c => {
@@ -285,53 +647,60 @@
             });
         }
 
-        async function fetchStatus() {
+        // =====================================================================
+        // TAB 1: VIRTUAL AP FUNCTIONS
+        // =====================================================================
+        async function fetchVapStatus() {
             try {
                 const res = await fetch('/cgi-bin/api.sh?action=status&_t=' + Date.now(), { cache: 'no-store' });
                 const d = await res.json();
 
-                const badge = document.getElementById('statusBadge');
-                const badgeTxt = document.getElementById('statusText');
+                const badge = document.getElementById('vapStatusBadge');
+                const badgeTxt = document.getElementById('vapStatusText');
                 if (d.running) {
                     badge.className = 'status-badge active';
                     badgeTxt.innerText = 'ACTIVE';
-                    document.getElementById('btnStart').disabled = true;
-                    document.getElementById('btnStop').disabled = false;
+                    document.getElementById('btnVapStart').disabled = true;
+                    document.getElementById('btnVapStop').disabled = false;
                 } else {
                     badge.className = 'status-badge stopped';
                     badgeTxt.innerText = 'STOPPED';
-                    document.getElementById('btnStart').disabled = false;
-                    document.getElementById('btnStop').disabled = true;
+                    document.getElementById('btnVapStart').disabled = false;
+                    document.getElementById('btnVapStop').disabled = true;
                 }
 
-                document.getElementById('lblSSID').innerText = d.ssid || '-';
-                document.getElementById('lblPhy').innerText = d.phy_iface || 'wlan0';
-                document.getElementById('lblApDev').innerText = d.ap_iface || 'ap0';
-                document.getElementById('lblUpstreamTable').innerText = (d.upstream_table || d.upstream || 'auto') + (d.upstream_iface ? ' (' + d.upstream_iface + ')' : '');
-                document.getElementById('lblBandChan').innerText = (d.band === '5' ? '5 GHz' : '2.4 GHz') + ' / Channel ' + (d.channel || 'auto');
-                document.getElementById('lblWidth').innerText = (d.width || '20') + ' MHz';
-                document.getElementById('lblGateway').innerText = d.gateway || '192.168.233.218';
-                document.getElementById('lblClients').innerText = d.clients || 0;
+                document.getElementById('lblVapSSID').innerText = d.ssid || '-';
+                document.getElementById('lblVapPhy').innerText = d.phy_iface || 'wlan0';
+                document.getElementById('lblVapApDev').innerText = d.ap_iface || 'ap0';
+                document.getElementById('lblVapUpstream').innerText = (d.upstream_table || d.upstream || 'auto') + (d.upstream_iface ? ' (' + d.upstream_iface + ')' : '');
+                document.getElementById('lblVapBandChan').innerText = (d.band === '5' ? '5 GHz' : '2.4 GHz') + ' / Channel ' + (d.channel || 'auto');
+                document.getElementById('lblVapWidth').innerText = (d.width || '20') + ' MHz';
+                document.getElementById('lblVapGateway').innerText = d.gateway || '192.168.233.218';
+                document.getElementById('lblVapClients').innerText = d.clients || 0;
+                document.getElementById('chkAutostart').checked = !!d.autostart;
 
-                // Sync inputs only if user is not currently typing
-                if (!isOperating && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
-                    if (d.ssid) document.getElementById('txtSSID').value = d.ssid;
-                    if (d.password) document.getElementById('txtPass').value = d.password;
+                if (!isBusy && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+                    if (d.ssid) document.getElementById('txtVapSSID').value = d.ssid;
+                    if (d.password) document.getElementById('txtVapPass').value = d.password;
                     if (d.band) {
-                        document.getElementById('selBand').value = d.band;
+                        document.getElementById('selVapBand').value = d.band;
                         updateChannelList();
                     }
-                    if (d.channel) document.getElementById('selChannel').value = d.channel;
-                    if (d.phy_iface) document.getElementById('selPhyIface').value = d.phy_iface;
-                    if (d.ap_iface) document.getElementById('selApIface').value = d.ap_iface;
-                    if (d.upstream) document.getElementById('selUpstream').value = d.upstream;
+                    if (d.channel !== undefined) document.getElementById('selVapChannel').value = d.channel;
+                    if (d.width) document.getElementById('selVapWidth').value = d.width;
+                    if (d.security) document.getElementById('selVapSecurity').value = d.security;
+                    if (d.gateway) document.getElementById('txtVapGW').value = d.gateway;
+                    if (d.dns) document.getElementById('txtVapDNS').value = d.dns;
+                    if (d.upstream && document.getElementById('selUpstream')) document.getElementById('selUpstream').value = d.upstream;
+                    if (d.ap_iface && document.getElementById('selApIface')) document.getElementById('selApIface').value = d.ap_iface;
+                    if (d.phy_iface && document.getElementById('selPhyIface')) document.getElementById('selPhyIface').value = d.phy_iface;
                 }
             } catch(e) {
-                console.error('fetchStatus error:', e);
+                console.error('fetchVapStatus error:', e);
             }
         }
 
-        async function fetchInterfaces() {
+        async function fetchVapInterfaces() {
             try {
                 const res = await fetch('/cgi-bin/api.sh?action=interfaces&_t=' + Date.now(), { cache: 'no-store' });
                 const d = await res.json();
@@ -358,15 +727,15 @@
                     selUp.appendChild(opt);
                 });
             } catch(e) {
-                console.error('fetchInterfaces error:', e);
+                console.error('fetchVapInterfaces error:', e);
             }
         }
 
-        async function fetchClients() {
+        async function fetchVapClients() {
             try {
                 const res = await fetch('/cgi-bin/api.sh?action=clients&_t=' + Date.now(), { cache: 'no-store' });
                 const d = await res.json();
-                const tbody = document.getElementById('clientsList');
+                const tbody = document.getElementById('vapClientsList');
 
                 if (!d.clients || d.clients.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:16px;">No devices connected</td></tr>';
@@ -382,7 +751,7 @@
                     </tr>
                 `).join('');
             } catch(e) {
-                console.error('fetchClients error:', e);
+                console.error('fetchVapClients error:', e);
             }
         }
 
@@ -390,56 +759,59 @@
             try {
                 const res = await fetch('/cgi-bin/api.sh?action=logs&_t=' + Date.now(), { cache: 'no-store' });
                 cachedLogs = await res.json();
-                document.getElementById('logOutput').innerText = cachedLogs[currentTab] || 'No log data';
+                document.getElementById('logOutput').innerText = cachedLogs[currentLogTab] || 'No log data';
             } catch(e) {
                 console.error('fetchLogs error:', e);
             }
         }
 
-        function setTab(tab, el) {
-            currentTab = tab;
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        function setLogTab(tab, el) {
+            currentLogTab = tab;
+            document.querySelectorAll('.log-tab').forEach(t => t.classList.remove('active'));
             el.classList.add('active');
-            document.getElementById('logOutput').innerText = cachedLogs[currentTab] || 'No log data';
+            document.getElementById('logOutput').innerText = cachedLogs[currentLogTab] || 'No log data';
         }
 
-        async function applyStart() {
-            isOperating = true;
-            document.getElementById('statusText').innerText = 'STARTING...';
-            document.getElementById('btnStart').disabled = true;
+        async function applyVapStart() {
+            isBusy = true;
+            document.getElementById('vapStatusText').innerText = 'STARTING...';
+            document.getElementById('btnVapStart').disabled = true;
 
             const p = new URLSearchParams({
                 action: 'start',
-                ssid: document.getElementById('txtSSID').value,
-                password: document.getElementById('txtPass').value,
+                ssid: document.getElementById('txtVapSSID').value,
+                password: document.getElementById('txtVapPass').value,
                 phy_iface: document.getElementById('selPhyIface').value,
                 ap_iface: document.getElementById('selApIface').value,
                 upstream: document.getElementById('selUpstream').value,
-                band: document.getElementById('selBand').value,
-                channel: document.getElementById('selChannel').value,
-                width: '20',
-                gateway: '192.168.233.218',
-                dns: '1.1.1.1'
+                band: document.getElementById('selVapBand').value,
+                channel: document.getElementById('selVapChannel').value,
+                width: document.getElementById('selVapWidth').value,
+                security: document.getElementById('selVapSecurity').value,
+                gateway: document.getElementById('txtVapGW').value,
+                dns: document.getElementById('txtVapDNS').value
             });
 
             try {
                 const res = await fetch('/cgi-bin/api.sh?' + p.toString() + '&_t=' + Date.now(), { method: 'POST' });
                 const d = await res.json();
-                showToast(d.running ? '✅ VirtualAP Started Successfully' : '⚠️ AP start command dispatched');
+                showToast(d.success ? '✅ VirtualAP Started' : '⚠️ AP Command Dispatched');
             } catch(e) {
                 showToast('❌ Error starting AP: ' + e);
             }
 
             setTimeout(async () => {
-                await refreshAll(false);
-                isOperating = false;
+                await fetchVapStatus();
+                await fetchVapClients();
+                await fetchLogs();
+                isBusy = false;
             }, 2500);
         }
 
-        async function applyStop() {
-            isOperating = true;
-            document.getElementById('statusText').innerText = 'STOPPING...';
-            document.getElementById('btnStop').disabled = true;
+        async function applyVapStop() {
+            isBusy = true;
+            document.getElementById('vapStatusText').innerText = 'STOPPING...';
+            document.getElementById('btnVapStop').disabled = true;
 
             try {
                 const res = await fetch('/cgi-bin/api.sh?action=stop&_t=' + Date.now(), { method: 'POST' });
@@ -450,28 +822,308 @@
             }
 
             setTimeout(async () => {
-                await refreshAll(false);
-                isOperating = false;
+                await fetchVapStatus();
+                await fetchVapClients();
+                await fetchLogs();
+                isBusy = false;
             }, 1800);
         }
 
-        async function refreshAll(manual) {
-            if (manual) showToast('🔄 Refreshing live data...');
-            await Promise.all([fetchStatus(), fetchClients(), fetchLogs()]);
+        async function toggleAutostart(enabled) {
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=autostart_set&enabled=${enabled ? '1' : '0'}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+            } catch(e) {
+                showToast('❌ Failed to update autostart setting');
+            }
+        }
+
+        // =====================================================================
+        // TAB 2: HOTSPOT FUNCTIONS
+        // =====================================================================
+        async function fetchHotspotStatus() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=hotspot_status&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+
+                const badge = document.getElementById('hsStatusBadge');
+                const badgeTxt = document.getElementById('hsStatusText');
+                const btnToggle = document.getElementById('btnHsToggle');
+
+                if (d.active) {
+                    badge.className = 'status-badge active';
+                    badgeTxt.innerText = 'ACTIVE';
+                    btnToggle.className = 'btn-ctrl btn-stop';
+                    btnToggle.innerText = '⏹ Turn Off Hotspot';
+                } else {
+                    badge.className = 'status-badge stopped';
+                    badgeTxt.innerText = 'STOPPED';
+                    btnToggle.className = 'btn-ctrl btn-start';
+                    btnToggle.innerText = '🔥 Turn On Hotspot';
+                }
+
+                document.getElementById('lblHsSSID').innerText = d.ssid || '-';
+                document.getElementById('lblHsSec').innerText = d.security === '1' ? 'WPA2-PSK' : (d.security === '2' ? 'WPA3-SAE' : 'Open');
+                document.getElementById('lblHsBand').innerText = d.band === '2' ? '5 GHz Preferred / Dual' : '2.4 GHz Only';
+                document.getElementById('lblHsMax').innerText = d.max_clients || '10';
+                document.getElementById('lblHsAx').innerText = d.ax_enabled ? 'Enabled' : 'Disabled';
+
+                document.getElementById('chkDunBypass').checked = !!d.dun_bypass;
+                document.getElementById('chkIpFwd').checked = !!d.ip_forward;
+                document.getElementById('chkBpfOffload').checked = !!d.bpf_offload;
+
+                if (!isBusy && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
+                    if (d.ssid) document.getElementById('txtHsSSID').value = d.ssid;
+                    if (d.password) document.getElementById('txtHsPass').value = d.password;
+                    if (d.band) document.getElementById('selHsBand').value = d.band;
+                    if (d.max_clients) document.getElementById('selHsMaxClients').value = d.max_clients;
+                }
+
+                // Render clients
+                const tbody = document.getElementById('hsClientsList');
+                if (!d.clients || d.clients.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:16px;">No devices connected</td></tr>';
+                } else {
+                    tbody.innerHTML = d.clients.map(c => `
+                        <tr>
+                            <td style="color:var(--accent-cyan); font-weight:600;">${c.ip}</td>
+                            <td style="color:var(--text-muted);">${c.mac}</td>
+                            <td><span class="client-active">ACTIVE</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e) {
+                console.error('fetchHotspotStatus error:', e);
+            }
+        }
+
+        async function toggleHotspot() {
+            const badgeTxt = document.getElementById('hsStatusText').innerText;
+            const willEnable = badgeTxt !== 'ACTIVE';
+            const ssid = document.getElementById('txtHsSSID').value;
+            const pass = document.getElementById('txtHsPass').value;
+
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=hotspot_toggle&enable=${willEnable ? '1' : '0'}&ssid=${encodeURIComponent(ssid)}&pass=${encodeURIComponent(pass)}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+                setTimeout(fetchHotspotStatus, 2000);
+            } catch(e) {
+                showToast('❌ Hotspot command failed: ' + e);
+            }
+        }
+
+        async function toggleDun(enable) {
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=hotspot_set_dun&enable=${enable ? '1' : '0'}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+            } catch(e) {
+                showToast('❌ Failed to update DUN bypass');
+            }
+        }
+
+        async function toggleIpFwd(enable) {
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=hotspot_set_ip_forward&enable=${enable ? '1' : '0'}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.ip_forward ? '✅ IP Forwarding Enabled' : '⏹ IP Forwarding Disabled');
+            } catch(e) {
+                showToast('❌ Failed to toggle IP forwarding');
+            }
+        }
+
+        async function toggleBpfOffload(enable) {
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=hotspot_set_offload&enable=${enable ? '1' : '0'}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+            } catch(e) {
+                showToast('❌ Failed to update BPF offload');
+            }
+        }
+
+        async function saveHotspotConfig() {
+            const p = new URLSearchParams({
+                action: 'hotspot_save_config',
+                ssid: document.getElementById('txtHsSSID').value,
+                password: document.getElementById('txtHsPass').value,
+                band: document.getElementById('selHsBand').value,
+                max_clients: document.getElementById('selHsMaxClients').value
+            });
+
+            try {
+                const res = await fetch('/cgi-bin/api.sh?' + p.toString() + '&_t=' + Date.now());
+                const d = await res.json();
+                showToast(d.message);
+                fetchHotspotStatus();
+            } catch(e) {
+                showToast('❌ Failed to save hotspot config');
+            }
+        }
+
+        // =====================================================================
+        // TAB 3: USB TETHERING FUNCTIONS
+        // =====================================================================
+        async function fetchUsbStatus() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=usb_status&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+
+                const badge = document.getElementById('usbStatusBadge');
+                const badgeTxt = document.getElementById('usbStatusText');
+                if (d.active) {
+                    badge.className = 'status-badge active';
+                    badgeTxt.innerText = 'ACTIVE';
+                } else {
+                    badge.className = 'status-badge stopped';
+                    badgeTxt.innerText = 'STOPPED';
+                }
+
+                document.getElementById('lblUsbConn').innerText = d.connected ? 'Connected (Plugged in)' : 'Disconnected';
+                document.getElementById('lblUsbSpeed').innerText = d.speed || 'High Speed (480 Mbps)';
+                document.getElementById('lblUsbIface').innerText = d.interface || 'rndis0';
+                document.getElementById('lblUsbIP').innerText = d.ip || 'Not Assigned';
+                document.getElementById('lblUsbMTU').innerText = d.mtu || '1500';
+
+                const rxMb = (d.rx_bytes / (1024 * 1024)).toFixed(2);
+                const txMb = (d.tx_bytes / (1024 * 1024)).toFixed(2);
+                document.getElementById('lblUsbRx').innerText = `${rxMb} MB`;
+                document.getElementById('lblUsbTx').innerText = `${txMb} MB`;
+                document.getElementById('lblUsbPkts').innerText = (d.rx_packets + d.tx_packets).toLocaleString();
+            } catch(e) {
+                console.error('fetchUsbStatus error:', e);
+            }
+        }
+
+        async function toggleUsb(enable) {
+            const mode = document.getElementById('selUsbMode').value;
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=usb_toggle&enable=${enable ? '1' : '0'}&mode=${mode}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+                setTimeout(fetchUsbStatus, 2000);
+            } catch(e) {
+                showToast('❌ USB toggle error: ' + e);
+            }
+        }
+
+        async function applyUsbMTU() {
+            const mtu = document.getElementById('txtUsbMTU').value;
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=usb_set_mtu&mtu=${mtu}&iface=rndis0&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+                fetchUsbStatus();
+            } catch(e) {
+                showToast('❌ Failed to set MTU');
+            }
+        }
+
+        // =====================================================================
+        // TAB 4: ETHERNET FUNCTIONS
+        // =====================================================================
+        async function fetchEthStatus() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=ethernet_status&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+
+                const badge = document.getElementById('ethStatusBadge');
+                const badgeTxt = document.getElementById('ethStatusText');
+
+                if (d.present) {
+                    if (d.carrier) {
+                        badge.className = 'status-badge active';
+                        badgeTxt.innerText = 'LINK UP';
+                    } else {
+                        badge.className = 'status-badge stopped';
+                        badgeTxt.innerText = 'CABLE UNPLUGGED';
+                    }
+                } else {
+                    badge.className = 'status-badge stopped';
+                    badgeTxt.innerText = 'NO ADAPTER';
+                }
+
+                document.getElementById('lblEthDev').innerText = d.interface ? `${d.interface} (${d.driver})` : 'Not Detected';
+                document.getElementById('lblEthDriver').innerText = d.driver || '-';
+                document.getElementById('lblEthCarrier').innerText = d.carrier ? 'Connected (Link Up)' : (d.present ? 'Unplugged' : 'No Hardware');
+                document.getElementById('lblEthSpeed').innerText = d.speed > 0 ? `${d.speed} Mbps (${d.duplex})` : 'Link Down';
+                document.getElementById('lblEthMAC').innerText = d.mac || '-';
+                document.getElementById('lblEthIP').innerText = d.ip || 'Not Assigned';
+            } catch(e) {
+                console.error('fetchEthStatus error:', e);
+            }
+        }
+
+        function toggleEthStaticFields() {
+            const mode = document.getElementById('selEthMode').value;
+            const isStatic = mode === 'static';
+            document.getElementById('txtEthIP').disabled = !isStatic;
+            document.getElementById('txtEthGW').disabled = !isStatic;
+            document.getElementById('txtEthDNS').disabled = !isStatic;
+        }
+
+        async function toggleEthTether(enable) {
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=ethernet_toggle_tether&enable=${enable ? '1' : '0'}&iface=eth0&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+                setTimeout(fetchEthStatus, 2000);
+            } catch(e) {
+                showToast('❌ Ethernet tether error: ' + e);
+            }
+        }
+
+        async function applyEthIP() {
+            const mode = document.getElementById('selEthMode').value;
+            const p = new URLSearchParams({
+                action: 'ethernet_set_ip',
+                iface: 'eth0',
+                mode: mode,
+                ip: document.getElementById('txtEthIP').value,
+                gateway: document.getElementById('txtEthGW').value,
+                dns: document.getElementById('txtEthDNS').value
+            });
+
+            try {
+                const res = await fetch('/cgi-bin/api.sh?' + p.toString() + '&_t=' + Date.now());
+                const d = await res.json();
+                showToast(d.message);
+                setTimeout(fetchEthStatus, 2000);
+            } catch(e) {
+                showToast('❌ Failed to configure Ethernet IP');
+            }
+        }
+
+        // =====================================================================
+        // DISPATCHER & AUTO-POLLER
+        // =====================================================================
+        function refreshCurrentTab(manual) {
+            if (manual) showToast('🔄 Refreshing data...');
+            if (currentNavTab === 'tab-vap') {
+                fetchVapStatus();
+                fetchVapClients();
+                fetchLogs();
+            } else if (currentNavTab === 'tab-hotspot') {
+                fetchHotspotStatus();
+            } else if (currentNavTab === 'tab-usb') {
+                fetchUsbStatus();
+            } else if (currentNavTab === 'tab-ethernet') {
+                fetchEthStatus();
+            }
         }
 
         // Initial setup
         updateChannelList();
-        fetchInterfaces().then(() => fetchStatus());
-        fetchClients();
+        fetchVapInterfaces().then(() => fetchVapStatus());
+        fetchVapClients();
         fetchLogs();
 
         // 3-second live auto-polling with cache buster
         setInterval(() => {
-            if (!isOperating) {
-                fetchStatus();
-                fetchClients();
-                fetchLogs();
+            if (!isBusy) {
+                refreshCurrentTab(false);
             }
         }, 3000);
     </script>

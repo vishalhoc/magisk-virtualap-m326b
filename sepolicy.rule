@@ -1,0 +1,16 @@
+# VirtualAP SELinux Policy Rules for Samsung Galaxy M32 5G (Dimensity 720 / MT6853)
+
+# Allow macloader to load firmware and set SAP properties without denials
+permissive macloader
+allow macloader vendor_mtk_wifi_hotspot_prop property_service set
+allow macloader macloader capability { net_admin sys_module }
+allow macloader sysfs_net dir { read open search }
+allow macloader sysfs_net file { read open write getattr }
+
+# Allow Wi-Fi HAL to manage interfaces and radio
+permissive hal_wifi_default
+allow hal_wifi_default hal_wifi_default capability { net_admin sys_module }
+
+# Allow system_server and netd for tethering & routing
+allow system_server system_server capability net_admin
+allow netd netd capability { net_admin sys_module }

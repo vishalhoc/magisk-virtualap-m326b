@@ -55,6 +55,7 @@ set_perm_recursive "$MODPATH/web" 0 0 0755 0644
 set_perm "$MODPATH/web/cgi-bin/api.sh" 0 0 0755
 set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644
 set_perm "$MODPATH/webroot/cgi-bin/api.sh" 0 0 0755
+[ -f "$MODPATH/sepolicy.rule" ] && set_perm "$MODPATH/sepolicy.rule" 0 0 0644
 
 ui_print "- Web Control Panel active at http://localhost:8088"
 ui_print "- Done! VirtualAP is ready to use."
