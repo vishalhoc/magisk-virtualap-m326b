@@ -70,16 +70,22 @@ MODDIR="${0%/*}"
             echo 1 > /dev/wmtWifi 2>/dev/null
         fi
 
-        # Pre-create ap0 if missing
+        # Pre-create / rename ap0 if missing
         if [ ! -d "/sys/class/net/ap0" ]; then
-            sleep 0.3
-            if [ -x "/data/local/virtualap/bin/iw.real" ]; then
+            if [ -d "/sys/class/net/swlan0" ]; then
+                ip link set swlan0 down 2>/dev/null
+                ip link set swlan0 name ap0 2>/dev/null
+            elif [ -x "/data/local/virtualap/bin/iw.real" ]; then
                 /data/local/virtualap/bin/iw.real dev wlan0 interface add ap0 type __ap 2>/dev/null || true
+                if [ -d "/sys/class/net/swlan0" ]; then
+                    ip link set swlan0 down 2>/dev/null
+                    ip link set swlan0 name ap0 2>/dev/null
+                fi
             fi
         fi
 
-        # Ensure binaries exist in /data/local/virtualap/bin
-        if [ ! -f "/data/local/virtualap/bin/iw" ] && [ -f "$MODDIR/files/iw" ]; then
+        # Ensure binaries exist and are updated in /data/local/virtualap/bin
+        if [ -f "$MODDIR/files/iw" ]; then
             cp -f "$MODDIR/files/iw" /data/local/virtualap/bin/iw 2>/dev/null
             chmod 755 /data/local/virtualap/bin/iw 2>/dev/null
         fi
@@ -87,9 +93,11 @@ MODDIR="${0%/*}"
             cp -f "$MODDIR/files/iw.real" /data/local/virtualap/bin/iw.real 2>/dev/null
             chmod 755 /data/local/virtualap/bin/iw.real 2>/dev/null
         fi
-        if [ ! -f "/data/local/virtualap/bin/hostapd" ] && [ -f "$MODDIR/files/hostapd_patched" ]; then
-            cp -f "$MODDIR/files/hostapd_patched" /data/local/virtualap/bin/hostapd 2>/dev/null
-            chmod 755 /data/local/virtualap/bin/hostapd 2>/dev/null
+        if [ -f "$MODDIR/files/hostapd_patched" ]; then
+            if [ ! -f "/data/local/virtualap/bin/hostapd" ] || ! cmp -s "$MODDIR/files/hostapd_patched" "/data/local/virtualap/bin/hostapd"; then
+                cp -f "$MODDIR/files/hostapd_patched" /data/local/virtualap/bin/hostapd 2>/dev/null
+                chmod 755 /data/local/virtualap/bin/hostapd 2>/dev/null
+            fi
         fi
 
         # Ensure WebUI is alive

@@ -2,14 +2,23 @@
 
 [![Magisk](https://img.shields.io/badge/Magisk-v24.0+-brightgreen.svg)](https://github.com/topjohnwu/Magisk)
 [![SoC](https://img.shields.io/badge/MediaTek-MT6853%20Dimensity%20720-blue.svg)](https://www.mediatek.com)
-[![Version](https://img.shields.io/badge/Version-v2.7-orange.svg)](#version-27-features)
+[![Version](https://img.shields.io/badge/Version-v2.8-orange.svg)](#version-28-features)
 [![WebUI](https://img.shields.io/badge/Control%20Panel-Web%20CGI%20Portal-red.svg)](#web-control-panel)
 
 A complete systemless Magisk module providing concurrent **Virtual AP (`ap0`)**, **Carrier Hotspot Detection Bypass**, **Dedicated Router Mode**, and multi-interface connectivity management with an integrated Web Control Panel for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
 
 ---
 
-## 🌟 Features (v2.7)
+## 🌟 What's New in v2.8
+
+### 🔧 Hostapd & MediaTek nl80211 AP Initialization Fix
+- **Driver Capability Check Patch:** Fixed the fatal `nl80211: Driver does not support authentication/association or connect commands` -> `nl80211 driver initialization failed` error by binary-patching the client-mode capability validation branch in `hostapd_patched` (`0x4623e4` / `0x4623fc`).
+- **Dynamic Interface Lifecycle Management:** On Dimensity 720 / MT6853, the kernel Wi-Fi driver statically allocates the AP interface `swlan0` with a hard limit of 3 concurrent interfaces (`wlan0`, `p2p0`, `swlan0`). The enhanced `iw` wrapper dynamically links `swlan0` to `ap0` and prevents teardown deletion from destroying the netdev, ensuring 100% reliable subsequent starts.
+- **Native App Integration:** Fully compatible with the unmodified stock `com.virtualap.app` on Android 13 OneUI. Tapping "Start Access Point" in the app UI boots into `RUNNING` without channel, band, or driver errors on both 2.4GHz and 5GHz.
+
+---
+
+## 🌟 Core Features
 
 ### 🛡️ Universal Carrier Hotspot Detection Bypass
 Prevents mobile network operators from detecting that tethering/hotspot is active. Works across **all 4 tethering modes**:
@@ -55,8 +64,8 @@ Prevents mobile network operators from detecting that tethering/hotspot is activ
 ## 📁 Repository Structure
 ```text
 ├── files/
-│   ├── hostapd_patched     # Patched hostapd binary for MT6853
-│   ├── iw                  # Wrapper script with MTK driver wake & native bypass
+│   ├── hostapd_patched     # Patched hostapd binary for MT6853 nl80211 AP mode
+│   ├── iw                  # Wrapper script with MTK driver wake, ap0 linking & native bypass
 │   ├── iw.real             # Static real iw binary
 │   ├── start-ap            # Core AP lifecycle management daemon
 │   ├── test_5g.conf        # 5GHz 20/40MHz hostapd configuration
@@ -69,14 +78,14 @@ Prevents mobile network operators from detecting that tethering/hotspot is activ
 ├── service.sh              # Boot daemon & persistent background service
 ├── customize.sh            # Magisk installer script
 ├── action.sh               # Magisk Action button handler
-└── module.prop             # Module metadata (v2.7)
+└── module.prop             # Module metadata (v2.8)
 ```
 
 ---
 
 ## 📦 Installation
 
-1. Download **`virtualap_m326b_fix_v2.7.zip`** from [Releases](https://github.com/vishalhoc/magisk-virtualap-m326b/releases).
+1. Download **`virtualap_m326b_fix_v2.8.zip`** from [Releases](https://github.com/vishalhoc/magisk-virtualap-m326b/releases).
 2. Flash via **Magisk Manager** or **KernelSU**.
 3. Reboot your device.
 4. Tap the **Action** button on the module in Magisk or open `http://localhost:8088` in your browser.

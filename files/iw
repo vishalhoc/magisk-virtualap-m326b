@@ -15,35 +15,47 @@ if [ -e /dev/wmtWifi ]; then
     echo 1 > /dev/wmtWifi 2>/dev/null
 fi
 
+# Ensure ap0 exists: On MediaTek MT6853, driver creates hardware AP vif 'swlan0'.
+# We seamlessly rename swlan0 to ap0 if ap0 is not yet present.
+ensure_ap0() {
+    if [ -d "/sys/class/net/ap0" ]; then
+        return 0
+    fi
+    if [ -d "/sys/class/net/swlan0" ]; then
+        ip link set swlan0 down 2>/dev/null
+        ip link set swlan0 name ap0 2>/dev/null
+        [ -d "/sys/class/net/ap0" ] && return 0
+    fi
+    # If neither exists, give driver a kick
+    if [ -e /dev/wmtWifi ]; then
+        echo 1 > /dev/wmtWifi 2>/dev/null
+        sleep 0.2
+        if [ -d "/sys/class/net/swlan0" ]; then
+            ip link set swlan0 down 2>/dev/null
+            ip link set swlan0 name ap0 2>/dev/null
+            [ -d "/sys/class/net/ap0" ] && return 0
+        fi
+    fi
+    return 1
+}
+
 case "$*" in
     *"interface add"*"ap0"*|*"interface add ap0"*)
-        # If ap0 already exists in kernel netdevs, return 0 immediately
-        if [ -d "/sys/class/net/ap0" ]; then
-            exit 0
-        fi
-        # Execute real iw to create ap0
+        ensure_ap0 && exit 0
+        # If not present, try real iw
         "$REAL_IW" "$@" 2>/dev/null
         rc=$?
-        if [ $rc -eq 0 ] || [ -d "/sys/class/net/ap0" ]; then
-            exit 0
-        fi
-        # If driver needed a split second to settle, retry once
-        if [ -e /dev/wmtWifi ]; then
-            echo 1 > /dev/wmtWifi 2>/dev/null
-            sleep 0.3
-        fi
-        "$REAL_IW" "$@" 2>/dev/null
-        if [ -d "/sys/class/net/ap0" ]; then
-            exit 0
-        fi
+        ensure_ap0 && exit 0
         exit $rc
         ;;
-    *"dev ap0 del"*)
-        # App deletes ap0 before re-adding. We run real del or ignore if not exists.
-        "$REAL_IW" "$@" 2>/dev/null || true
+    *"dev ap0 del"*|*"dev swlan0 del"*)
+        # Do not delete the hardware vif from kernel; bring down and flush so it is ready for next use
+        ip link set ap0 down 2>/dev/null
+        ip addr flush dev ap0 2>/dev/null
         exit 0
         ;;
     *"dev ap0 info"*)
+        ensure_ap0
         if [ -d "/sys/class/net/ap0" ]; then
             "$REAL_IW" "$@" 2>/dev/null && exit 0
             echo "Interface ap0"
