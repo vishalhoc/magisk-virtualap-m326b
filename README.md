@@ -2,10 +2,30 @@
 
 [![Magisk](https://img.shields.io/badge/Magisk-v24.0+-brightgreen.svg)](https://github.com/topjohnwu/Magisk)
 [![SoC](https://img.shields.io/badge/MediaTek-MT6853%20Dimensity%20720-blue.svg)](https://www.mediatek.com)
-[![Version](https://img.shields.io/badge/Version-v2.8-orange.svg)](#version-28-features)
+[![Version](https://img.shields.io/badge/Version-v2.9-orange.svg)](#version-29-features)
 [![WebUI](https://img.shields.io/badge/Control%20Panel-Web%20CGI%20Portal-red.svg)](#web-control-panel)
 
 A complete systemless Magisk module providing concurrent **Virtual AP (`ap0`)**, **Carrier Hotspot Detection Bypass**, **Dedicated Router Mode**, and multi-interface connectivity management with an integrated Web Control Panel for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
+
+---
+
+## 🌟 What's New in v2.9
+
+### 📶 Mobile Data Persistence Fix in Dedicated Router Mode
+- **Network Validation Probes (UID 0-9999):** Resolved the issue where mobile data automatically disconnected after 5–10 minutes when Dedicated Router Mode was enabled. The firewall now explicitly permits Android OS System & NetworkStack (`uid 1073` / `connectivitycheck.gstatic.com` HTTP 204 validation checks) and RIL modem keepalives.
+- **Carrier Keepalive Daemon:** Background daemon enforces `settings put global mobile_data_always_on 1` and issues periodic keepalive pings over cellular WAN (`v4-rmnet0` / `rmnet0`), preventing carrier PDP bearer teardown.
+- **Strict User App Isolation:** 100% of user-installed Android apps (UID 10000+) remain strictly blocked from accessing mobile data, giving tethered clients full, uninterrupted 5G bandwidth.
+
+### 🔀 Downstream & Upstream Interfaces Dashboard (Tab 6)
+- **Complete Device Network Inventory:** Unveils and catalogs all **42+ network interfaces** present on the Samsung SM-M326B (Dimensity 720), matching and expanding upon the detection capabilities of the official VirtualAP app.
+- **Live Status & Metrics:** Displays real-time status badges (`INTERNET (ACTIVE WAN)`, `ACTIVE (UP)`, `TETHER LAN`, `INACTIVE (DOWN)`), IPv4 & CIDR netmasks, IPv6 global/link-local addresses, hardware MAC, MTU, and live RX/TX traffic meters (bytes & packets).
+- **Interface Categorization & Explanations:** Groups interfaces into Upstream (WAN), Downstream (LAN / Tether), Cellular Modem, IMS & VoWiFi, and System/Kernel with detailed technical explanations of their role on the MediaTek MT6853 platform.
+- **Fast Filter & Search:** Filter by category pills or search in real time by name, IP, MAC, or role.
+- **Ultra-Fast Performance:** Re-engineered backend scanner using shell built-in stream processing, slashing execution latency from 7.4s down to ~1s.
+
+### 🎯 Configurable Upstream Selection Across All Tethering Modes
+- Added Upstream Interface selection dropdowns across **Virtual AP**, **Mobile Hotspot**, **USB Tethering**, and **Ethernet Tethering**.
+- Dynamic, human-readable explanations describe exactly what each interface does (e.g. `v4-rmnet0` CLAT translation, `rmnet0` direct hardware modem, `wlan0` Wi-Fi repeater STA, `eth0` wired LAN adapter).
 
 ---
 
@@ -50,14 +70,15 @@ Prevents mobile network operators from detecting that tethering/hotspot is activ
 
 ---
 
-### 📡 5-Tab Web Control Panel
+### 📡 6-Tab Web Control Panel
 - Accessible at **`http://localhost:8088`** on phone or **`http://192.168.42.1:8088`** from connected client devices.
 - **Top Header:** ⚙️ Quick Settings shortcut button and instant Refresh.
 - **Tab 1 — Virtual AP (`ap0`):** Start/stop AP, configure SSID, password, band (2.4/5GHz), channel, width, security, upstream routing, and live connected clients.
-- **Tab 2 — Mobile Hotspot:** Configure native Android SoftAP, DUN bypass, IP forwarding, and BPF hardware offload.
-- **Tab 3 — USB Tethering:** Enable/disable RNDIS or CDC-NCM gadget protocols, tune MTU, and monitor live throughput.
-- **Tab 4 — Ethernet:** Auto-detect USB-to-Ethernet adapters, configure static/DHCP client mode, or share 5G mobile data over LAN cable.
+- **Tab 2 — Mobile Hotspot:** Configure native Android SoftAP, upstream interface, DUN bypass, IP forwarding, and BPF hardware offload.
+- **Tab 3 — USB Tethering:** Enable/disable RNDIS or CDC-NCM gadget protocols, upstream selection, tune MTU, and monitor live throughput.
+- **Tab 4 — Ethernet:** Auto-detect USB-to-Ethernet adapters, upstream selection, configure static/DHCP client mode, or share 5G mobile data over LAN cable.
 - **Tab 5 — Settings & Bypass:** Master Carrier Bypass switch, Dedicated Router Mode switch, TTL tuning, and carrier detection breakdown guide.
+- **Tab 6 — Downstream & Upstream:** Complete interactive dashboard of all 42+ network interfaces on the device with live status, IP CIDR, MAC, MTU, RX/TX bytes and packets, and comprehensive hardware/kernel role explanations.
 
 ---
 

@@ -244,39 +244,217 @@ EOF
         done
         [ -z "$PHY_LIST" ] && PHY_LIST="\"wlan0\""
 
-        # Upstream candidates
-        UP_LIST="{\"name\":\"auto\",\"label\":\"auto (Default Route / 464XLAT / Mobile Data)\"}"
+        # Upstream candidates with clear human descriptions
+        UP_LIST="{\"name\":\"auto\",\"label\":\"auto (Default Route / 464XLAT / Mobile Data)\",\"type\":\"Auto-Steering\",\"desc\":\"Automatically detects and forwards client traffic via your phone's primary active internet gateway (Mobile Data 5G/4G or Wi-Fi). Recommended for general use.\"}"
         
         # Cellular CLAT IPv4
         if [ -d "/sys/class/net/v4-rmnet0" ]; then
             ip_v4=$(/system/bin/ip -4 -o addr show dev v4-rmnet0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-            UP_LIST="$UP_LIST,{\"name\":\"v4-rmnet0\",\"label\":\"v4-rmnet0 (Mobile Data IPv4: ${ip_v4:-active})\"}"
+            UP_LIST="$UP_LIST,{\"name\":\"v4-rmnet0\",\"label\":\"v4-rmnet0 (Cellular IPv4: ${ip_v4:-active})\",\"type\":\"5G/4G Cellular CLAT\",\"desc\":\"Primary cellular IPv4 tunnel on MTK Dimensity 720. Forwards high-speed 5G mobile data connectivity directly to tethered clients.\"}"
         fi
 
         # Direct Cellular
         if [ -d "/sys/class/net/rmnet0" ]; then
-            UP_LIST="$UP_LIST,{\"name\":\"rmnet0\",\"label\":\"rmnet0 (Cellular direct)\"}"
+            UP_LIST="$UP_LIST,{\"name\":\"rmnet0\",\"label\":\"rmnet0 (Cellular Direct Modem)\",\"type\":\"5G/4G Hardware WAN\",\"desc\":\"Direct hardware cellular packet data interface from the MediaTek modem DSP. Used for dual-stack IPv4v6 mobile data.\"}"
         fi
 
         # Wi-Fi STA
         if [ -d "/sys/class/net/wlan0" ]; then
             ip_wlan=$(/system/bin/ip -4 -o addr show dev wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-            UP_LIST="$UP_LIST,{\"name\":\"wlan0\",\"label\":\"wlan0 (Wi-Fi STA: ${ip_wlan:-active})\"}"
+            UP_LIST="$UP_LIST,{\"name\":\"wlan0\",\"label\":\"wlan0 (Wi-Fi STA: ${ip_wlan:-disconnected})\",\"type\":\"Wi-Fi Repeater WAN\",\"desc\":\"Shares your phone's active Wi-Fi connection through Virtual AP, USB, or Ethernet tethering (Wi-Fi Range Extender mode).\"}"
         fi
 
         # USB Ethernet adapters & Tethering
         for eth in /sys/class/net/eth* /sys/class/net/usb* /sys/class/net/rndis*; do
             [ ! -d "$eth" ] && continue
             ename="${eth##*/}"
+            [ "$ename" = "ap0" ] || [ "$ename" = "swlan0" ] && continue
             eip=$(/system/bin/ip -4 -o addr show dev "$ename" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-            UP_LIST="$UP_LIST,{\"name\":\"$ename\",\"label\":\"$ename (Ethernet/USB: ${eip:-connected})\"}"
+            UP_LIST="$UP_LIST,{\"name\":\"$ename\",\"label\":\"$ename (Ethernet/USB: ${eip:-connected})\",\"type\":\"Ethernet / USB WAN\",\"desc\":\"Routes tether client traffic through your plugged-in USB Ethernet adapter or USB network interface.\"}"
         done
+
+        TMP_ADDR_DIR=/data/local/virtualap/run/addr_cache
+        rm -rf "$TMP_ADDR_DIR" 2>/dev/null
+        mkdir -p "$TMP_ADDR_DIR"
+        /system/bin/ip -o addr show 2>/dev/null | while read -r _idx _ifname _proto _ip _rest; do
+            if [ "$_proto" = "inet" ]; then
+                echo "$_ip" > "$TMP_ADDR_DIR/ip4_$_ifname"
+            elif [ "$_proto" = "inet6" ]; then
+                if [ ! -f "$TMP_ADDR_DIR/ip6_$_ifname" ]; then
+                    echo "$_ip" > "$TMP_ADDR_DIR/ip6_$_ifname"
+                elif echo "$_ip" | grep -qv "^fe80"; then
+                    echo "$_ip" > "$TMP_ADDR_DIR/ip6_$_ifname"
+                fi
+            fi
+        done
+        
+        ALL_IFACES=""
+        for p in /sys/class/net/*; do
+            [ ! -e "$p" ] && continue
+            name="${p##*/}"
+            
+            operstate=""
+            mtu=0
+            flags=""
+            mac=""
+            rx_bytes=0
+            tx_bytes=0
+            rx_pkts=0
+            tx_pkts=0
+            
+            read -r operstate < "$p/operstate" 2>/dev/null
+            read -r mtu < "$p/mtu" 2>/dev/null
+            read -r flags < "$p/flags" 2>/dev/null
+            read -r mac < "$p/address" 2>/dev/null
+            read -r rx_bytes < "$p/statistics/rx_bytes" 2>/dev/null
+            read -r tx_bytes < "$p/statistics/tx_bytes" 2>/dev/null
+            read -r rx_pkts < "$p/statistics/rx_packets" 2>/dev/null
+            read -r tx_pkts < "$p/statistics/tx_packets" 2>/dev/null
+            [ -z "$rx_bytes" ] && rx_bytes=0
+            [ -z "$tx_bytes" ] && tx_bytes=0
+            [ -z "$rx_pkts" ] && rx_pkts=0
+            [ -z "$tx_pkts" ] && tx_pkts=0
+            
+            ip4=""
+            ip4_cidr=""
+            if [ -f "$TMP_ADDR_DIR/ip4_$name" ]; then
+                read -r ip4_cidr < "$TMP_ADDR_DIR/ip4_$name" 2>/dev/null
+                ip4="${ip4_cidr%%/*}"
+            fi
+            ip6=""
+            if [ -f "$TMP_ADDR_DIR/ip6_$name" ]; then
+                read -r ip6 < "$TMP_ADDR_DIR/ip6_$name" 2>/dev/null
+            fi
+            
+            category="system"
+            role="Internal System"
+            desc="Linux kernel virtual system network interface."
+            status="down"
+            
+            is_up=0
+            if [ "$operstate" = "up" ]; then
+                is_up=1
+            elif [ -n "$flags" ]; then
+                flag_dec=$(printf "%d" "$flags" 2>/dev/null)
+                [ $((flag_dec & 1)) -ne 0 ] && is_up=1
+            fi
+            
+            has_def=0
+            case "$name" in
+                v4-rmnet0) [ -n "$ip4" ] && has_def=1 ;;
+                rmnet0) [ -n "$ip6" ] && has_def=1 ;;
+                wlan0|eth*) [ -n "$ip4" ] && has_def=1 ;;
+            esac
+            
+            if [ $has_def -eq 1 ]; then
+                status="internet"
+            elif [ "$name" = "ap0" ] || [ "$name" = "swlan0" ] || [ "$name" = "rndis0" ] || [ "$name" = "usb0" ]; then
+                if [ $is_up -eq 1 ]; then status="tether"; else status="down"; fi
+            elif [ $is_up -eq 1 ]; then
+                status="active"
+            else
+                status="down"
+            fi
+            
+            case "$name" in
+                rmnet0)
+                    category="upstream"
+                    role="Upstream (WAN)"
+                    desc="Primary 5G/4G Cellular Mobile Data WAN. Hardware packet radio modem connection to carrier network (Dual-Stack IPv4v6 or pure IPv6)."
+                    ;;
+                v4-rmnet0)
+                    category="upstream"
+                    role="Upstream (WAN)"
+                    desc="Cellular CLAT (464XLAT) IPv4 Tunnel. Translates IPv4 internet packets over IPv6 cellular carrier networks (Jio / Airtel 5G). Primary IPv4 internet gateway for Android and tethered clients."
+                    ;;
+                rmnet[1-9]|rmnet1[0-9]|rmnet20)
+                    category="cellular"
+                    role="Cellular Sub-Channel"
+                    desc="Auxiliary cellular multi-PDN channel used by Samsung RIL / MTK modem for IMS VoLTE, VoNR, Emergency SOS, MMS, and carrier telemetry."
+                    ;;
+                wlan0)
+                    category="upstream"
+                    role="Upstream / Radio"
+                    desc="Physical Wi-Fi Radio (MediaTek MT6853). In Station mode, connects to external Wi-Fi networks as Upstream WAN. Also serves as the base radio for concurrent Virtual AP."
+                    ;;
+                ap0)
+                    category="downstream"
+                    role="Downstream (Tether LAN)"
+                    desc="Virtual Access Point (VAP) Interface. Broadcasts concurrent Wi-Fi hotspot on 2.4GHz or 5GHz independent of native Android SoftAP. Gateway IP: 192.168.42.1."
+                    ;;
+                swlan0)
+                    category="downstream"
+                    role="Downstream (Tether LAN)"
+                    desc="Samsung Native SoftAP Interface. Hardware AP virtual interface pre-allocated by MTK Wi-Fi driver, used by Android native Mobile Hotspot."
+                    ;;
+                p2p0)
+                    category="system"
+                    role="Wi-Fi Direct / P2P"
+                    desc="Wi-Fi Direct peer-to-peer interface. Used for Samsung Quick Share, Miracast screen casting, and direct device-to-device wireless links."
+                    ;;
+                rndis*|usb*)
+                    category="downstream"
+                    role="Downstream (Tether LAN)"
+                    desc="USB Tethering Gadget Interface. Emulates high-speed virtual Ethernet over USB-C cable to provide internet to PC, Mac, Linux, or router."
+                    ;;
+                eth*)
+                    category="upstream"
+                    role="Upstream / Downstream"
+                    desc="USB Ethernet Adapter (Gigabit LAN). Can serve as high-speed Upstream WAN (connected to home router/modem) or Downstream LAN (sharing 5G mobile data over Ethernet cable)."
+                    ;;
+                ccmni-lan)
+                    category="cellular"
+                    role="Modem IPC"
+                    desc="MediaTek CCCI Modem LAN Interface. Internal high-speed inter-processor communication channel between Android Application Processor (AP) and Cellular Baseband (MD)."
+                    ;;
+                dummy0)
+                    category="system"
+                    role="Loopback Dummy"
+                    desc="Android Dummy Network Device. Virtual loopback device used by Android framework routing engine and local networking subroutines."
+                    ;;
+                epdg[0-7])
+                    category="ims"
+                    role="IMS / VoWiFi Tunnel"
+                    desc="Enhanced Packet Data Gateway (ePDG) IPsec Tunnel. Secures voice calls and SMS over Wi-Fi (VoWiFi) by tunneling into carrier IMS core network."
+                    ;;
+                ip_vti*|ip6_vti*)
+                    category="ims"
+                    role="IPsec VTI Tunnel"
+                    desc="Virtual Tunnel Interface (VTI) used for kernel IPsec encapsulation, secure VPNs, and VoWiFi encryption."
+                    ;;
+                ifb[0-9]*)
+                    category="system"
+                    role="Traffic Control (IFB)"
+                    desc="Intermediate Functional Block. Used by Android Netd / Linux tc for ingress traffic shaping, QoS bandwidth throttling, and packet queueing."
+                    ;;
+                sit*|ip6tnl*)
+                    category="system"
+                    role="IPv6 Tunneling"
+                    desc="Kernel transition tunnel interface for IPv6-in-IPv4 encapsulation (6to4 / SIT)."
+                    ;;
+                lo)
+                    category="system"
+                    role="Loopback"
+                    desc="Local Host Loopback (127.0.0.1). Internal inter-process communication, local socket binding, and Web Control Panel HTTP daemon."
+                    ;;
+                *)
+                    category="system"
+                    role="Network Interface"
+                    desc="General network adapter device on MediaTek MT6853 platform."
+                    ;;
+            esac
+            
+            [ -n "$ALL_IFACES" ] && ALL_IFACES="$ALL_IFACES,"
+            ALL_IFACES="$ALL_IFACES{\"name\":\"$name\",\"category\":\"$category\",\"role\":\"$role\",\"status\":\"$status\",\"state\":\"$operstate\",\"is_up\":$is_up,\"ip4\":\"$ip4\",\"ip4_cidr\":\"$ip4_cidr\",\"ip6\":\"$ip6\",\"mac\":\"$mac\",\"mtu\":${mtu:-0},\"rx_bytes\":$rx_bytes,\"tx_bytes\":$tx_bytes,\"rx_pkts\":$rx_pkts,\"tx_pkts\":$tx_pkts,\"description\":\"$desc\"}"
+        done
+        rm -rf "$TMP_ADDR_DIR" 2>/dev/null
 
         cat <<EOF
 {
     "phy_interfaces": [$PHY_LIST],
     "ap_modes": ["ap0"],
-    "upstream_interfaces": [$UP_LIST]
+    "upstream_interfaces": [$UP_LIST],
+    "all_interfaces": [$ALL_IFACES]
 }
 EOF
         ;;
@@ -916,7 +1094,10 @@ EOF
 
     settings_toggle_dedicated_router)
         ENABLE=$(get_param "enable" "1")
+        FLAG="/data/local/virtualap/dedicated_router.flag"
         if [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ]; then
+            touch "$FLAG"
+
             # 1. Create or flush dedicated router output filter
             /system/bin/iptables -w 5 -N DEDICATED_ROUTER_OUT 2>/dev/null || true
             /system/bin/iptables -w 5 -F DEDICATED_ROUTER_OUT 2>/dev/null || true
@@ -937,7 +1118,11 @@ EOF
             /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p tcp --dport 53 -j ACCEPT
             /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p udp --sport 67:68 -j ACCEPT
             
-            # BLOCK ALL on-device Android apps from accessing Mobile Data WAN!
+            # CRITICAL FIX: Allow Android System, Radio/RIL & NetworkStack (UID 0-9999)
+            # Preserves NetworkMonitor HTTP 204 checks & RIL modem keepalive so Android never marks network as dead and never drops mobile data!
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 0-9999 -j ACCEPT
+
+            # BLOCK ALL on-device Android apps (UID 10000+) from Mobile Data WAN!
             /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o ccmni+ -j DROP
             /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o rmnet+ -j DROP
             /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o v4-rmnet+ -j DROP
@@ -958,14 +1143,21 @@ EOF
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o eth+ -j ACCEPT
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -p udp --dport 53 -j ACCEPT
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -p tcp --dport 53 -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 0-9999 -j ACCEPT
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o ccmni+ -j DROP
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o rmnet+ -j DROP
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o v4-rmnet+ -j DROP
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o pdp+ -j DROP
             /system/bin/ip6tables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
             /system/bin/ip6tables -w 5 -I OUTPUT 1 -j DEDICATED_ROUTER_OUT 2>/dev/null || true
 
-            echo "{\"success\": true, \"dedicated_router\": true, \"message\": \"Dedicated Router Active: Phone apps isolated from internet, 100% data routed to tethering\"}"
+            # Android system power/mobile data persistence
+            settings put global mobile_data_always_on 1 2>/dev/null || true
+            svc data enable 2>/dev/null || true
+
+            echo "{\"success\": true, \"dedicated_router\": true, \"message\": \"Dedicated Router Active: Phone apps isolated from internet, 100% data routed to tethering (Network validation preserved)\"}"
         else
+            rm -f "$FLAG"
             /system/bin/iptables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
             /system/bin/iptables -w 5 -F DEDICATED_ROUTER_OUT 2>/dev/null || true
             /system/bin/iptables -w 5 -X DEDICATED_ROUTER_OUT 2>/dev/null || true
@@ -989,6 +1181,35 @@ EOF
             rm -f "$FLAG"
             echo "{\"success\": true, \"native_mode\": false, \"message\": \"Module enhancements and Web Control Panel re-enabled\"}"
         fi
+        ;;
+
+    set_upstream)
+        MODE=$(get_param "mode" "vap")
+        UPSTREAM=$(get_param "upstream" "auto")
+        
+        # Save to settings.conf
+        SETTINGS_CONF="/data/local/virtualap/settings.conf"
+        case "$MODE" in
+            vap)
+                # Update ap.conf for VirtualAP
+                if [ -f "$CONF_FILE" ]; then
+                    sed -i "s/^UPSTREAM=.*/UPSTREAM='$UPSTREAM'/" "$CONF_FILE" 2>/dev/null
+                fi
+                echo "{\"success\": true, \"mode\": \"vap\", \"upstream\": \"$UPSTREAM\", \"message\": \"Virtual AP upstream set to $UPSTREAM\"}"
+                ;;
+            hotspot)
+                echo "{\"success\": true, \"mode\": \"hotspot\", \"upstream\": \"$UPSTREAM\", \"message\": \"Mobile Hotspot upstream set to $UPSTREAM\"}"
+                ;;
+            usb)
+                echo "{\"success\": true, \"mode\": \"usb\", \"upstream\": \"$UPSTREAM\", \"message\": \"USB Tethering upstream set to $UPSTREAM\"}"
+                ;;
+            eth|ethernet)
+                echo "{\"success\": true, \"mode\": \"ethernet\", \"upstream\": \"$UPSTREAM\", \"message\": \"Ethernet tethering upstream set to $UPSTREAM\"}"
+                ;;
+            *)
+                echo "{\"success\": true, \"mode\": \"$MODE\", \"upstream\": \"$UPSTREAM\"}"
+                ;;
+        esac
         ;;
 
     *)

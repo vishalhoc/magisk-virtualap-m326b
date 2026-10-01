@@ -165,6 +165,48 @@
         .badge-pill.green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
         .badge-pill.amber { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); }
         .badge-pill.cyan { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); }
+
+        .pill-btn {
+            background: var(--bg-card); color: var(--text-muted); border: 1px solid var(--border);
+            padding: 5px 12px; border-radius: 9999px; font-size: 0.74rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pill-btn:hover { background: var(--bg-card-hover); color: #fff; }
+        .pill-btn.active { background: #1e293b; color: var(--accent-cyan); border-color: var(--accent-cyan); }
+
+        .iface-card {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+            transition: border-color 0.2s;
+        }
+        .iface-card:hover { border-color: rgba(56,189,248,0.4); }
+        .iface-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+        .iface-name { font-size: 1.05rem; font-weight: 700; font-family: ui-monospace, monospace; color: #fff; display: flex; align-items: center; gap: 8px; }
+        .iface-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .iface-badge { font-size: 0.72rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+        .iface-badge.wan { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid var(--accent-amber); }
+        .iface-badge.lan { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }
+        .iface-badge.modem { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); border: 1px solid var(--accent-purple); }
+        .iface-badge.ims { background: rgba(14, 165, 233, 0.15); color: #38bdf8; border: 1px solid #38bdf8; }
+        .iface-badge.sys { background: rgba(148, 163, 184, 0.15); color: var(--text-muted); border: 1px solid var(--border); }
+
+        .iface-status-pill { font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 9999px; display: inline-flex; align-items: center; gap: 5px; }
+        .iface-status-pill.internet { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); animation: pulse 2s infinite; }
+        .iface-status-pill.active { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .iface-status-pill.tether { background: rgba(56, 189, 248, 0.15); color: var(--accent-cyan); border: 1px solid var(--accent-cyan); }
+        .iface-status-pill.down { background: rgba(148, 163, 184, 0.1); color: var(--text-muted); border: 1px solid rgba(148, 163, 184, 0.2); }
+
+        .iface-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px; font-size: 0.8rem; }
+        .iface-prop { background: var(--bg-input); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.04); }
+        .iface-prop-lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 2px; }
+        .iface-prop-val { font-weight: 600; font-family: ui-monospace, monospace; color: #fff; word-break: break-all; }
+        .iface-desc-box {
+            background: rgba(255, 255, 255, 0.02); border-left: 3px solid var(--accent-cyan);
+            padding: 8px 12px; border-radius: 0 6px 6px 0; font-size: 0.78rem; line-height: 1.45; color: #cbd5e1;
+        }
+        .upstream-explain-box {
+            font-size: 0.75rem; color: var(--accent-cyan); background: rgba(56, 189, 248, 0.08);
+            padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.2); line-height: 1.4;
+        }
     </style>
 </head>
 <body>
@@ -189,6 +231,7 @@
             <button class="nav-tab" onclick="switchNav('tab-hotspot', this)">🔥 Mobile Hotspot</button>
             <button class="nav-tab" onclick="switchNav('tab-usb', this)">🔌 USB Tethering</button>
             <button class="nav-tab" onclick="switchNav('tab-ethernet', this)">🌐 Ethernet</button>
+            <button class="nav-tab" id="navTabInterfaces" onclick="switchNav('tab-interfaces', this)">🔀 Downstream & Upstream</button>
             <button class="nav-tab" id="navTabSettings" onclick="switchNav('tab-settings', this)">⚙️ Settings & Bypass</button>
         </div>
 
@@ -260,12 +303,16 @@
 
                     <div class="form-row">
                         <label>3. Upstream Internet Source</label>
-                        <select id="selUpstream">
+                        <select id="selUpstream" onchange="onUpstreamChange('vap', this.value)">
                             <option value="auto">auto (Default Route / 464XLAT / Mobile Data)</option>
-                            <option value="v4-rmnet0">v4-rmnet0 (Mobile Data IPv4 CLAT)</option>
-                            <option value="rmnet0">rmnet0 (Cellular Direct)</option>
-                            <option value="wlan0">wlan0 (Wi-Fi STA Repeater)</option>
+                            <option value="v4-rmnet0">v4-rmnet0 (Cellular CLAT IPv4 — 5G/4G Mobile Data)</option>
+                            <option value="rmnet0">rmnet0 (Cellular Direct Modem)</option>
+                            <option value="wlan0">wlan0 (Wi-Fi STA — Share Connected Wi-Fi)</option>
+                            <option value="eth0">eth0 (USB Ethernet LAN / Adapter)</option>
                         </select>
+                        <div id="upstreamExplainVap" class="upstream-explain-box" style="margin-top:6px;">
+                            <b>auto:</b> Automatically detects and routes client traffic through your phone's active internet gateway (Mobile Data 5G/4G or Wi-Fi).
+                        </div>
                     </div>
 
                     <div class="grid-2" style="gap:10px; margin-bottom:0;">
@@ -457,6 +504,19 @@
                         </select>
                     </div>
                 </div>
+                <div class="form-row" style="margin-top:12px;">
+                    <label>Upstream Internet Source (WAN Gateway)</label>
+                    <select id="selHsUpstream" onchange="onUpstreamChange('hotspot', this.value)">
+                        <option value="auto">auto (Default Route / 464XLAT / Mobile Data)</option>
+                        <option value="v4-rmnet0">v4-rmnet0 (Cellular CLAT IPv4 — 5G/4G Mobile Data)</option>
+                        <option value="rmnet0">rmnet0 (Cellular Direct Modem)</option>
+                        <option value="wlan0">wlan0 (Wi-Fi STA — Share Connected Wi-Fi)</option>
+                        <option value="eth0">eth0 (USB Ethernet LAN / Adapter)</option>
+                    </select>
+                    <div id="upstreamExplainHs" class="upstream-explain-box" style="margin-top:6px;">
+                        <b>auto:</b> Automatically detects and routes client traffic through your phone's active internet gateway (Mobile Data 5G/4G or Wi-Fi).
+                    </div>
+                </div>
             </div>
 
             <!-- Hotspot Clients -->
@@ -520,6 +580,20 @@
                         </div>
                         <div class="input-hint">Default 1500. Lower to 1420-1440 for gaming, or 9000 for jumbo frames.</div>
                     </div>
+
+                    <div class="form-row" style="margin-top:14px;">
+                        <label>Upstream Internet Source (WAN Gateway)</label>
+                        <select id="selUsbUpstream" onchange="onUpstreamChange('usb', this.value)">
+                            <option value="auto">auto (Default Route / 464XLAT / Mobile Data)</option>
+                            <option value="v4-rmnet0">v4-rmnet0 (Cellular CLAT IPv4 — 5G/4G Mobile Data)</option>
+                            <option value="rmnet0">rmnet0 (Cellular Direct Modem)</option>
+                            <option value="wlan0">wlan0 (Wi-Fi STA — Share Connected Wi-Fi)</option>
+                            <option value="eth0">eth0 (USB Ethernet LAN / Adapter)</option>
+                        </select>
+                        <div id="upstreamExplainUsb" class="upstream-explain-box" style="margin-top:6px;">
+                            <b>auto:</b> Automatically detects and routes client traffic through your phone's active internet gateway (Mobile Data 5G/4G or Wi-Fi).
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -571,6 +645,19 @@
                     <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
                         Connect your PC, router, or switch to your phone via USB Ethernet adapter. The phone acts as a DHCP gateway (<span style="color:#fff; font-family:monospace;">192.168.100.1</span>) and shares 5G/LTE data.
                     </p>
+                    
+                    <div class="form-row" style="margin-top:10px; margin-bottom:14px;">
+                        <label>Upstream Internet Source (WAN Gateway)</label>
+                        <select id="selEthUpstream" onchange="onUpstreamChange('ethernet', this.value)">
+                            <option value="auto">auto (Default Route / 464XLAT / Mobile Data)</option>
+                            <option value="v4-rmnet0">v4-rmnet0 (Cellular CLAT IPv4 — 5G/4G Mobile Data)</option>
+                            <option value="rmnet0">rmnet0 (Cellular Direct Modem)</option>
+                            <option value="wlan0">wlan0 (Wi-Fi STA — Share Connected Wi-Fi)</option>
+                        </select>
+                        <div id="upstreamExplainEth" class="upstream-explain-box" style="margin-top:6px;">
+                            <b>auto:</b> Automatically detects and routes client traffic through your phone's active internet gateway (Mobile Data 5G/4G or Wi-Fi).
+                        </div>
+                    </div>
                     
                     <div class="action-row">
                         <button id="btnEthTetherStart" class="btn-ctrl btn-start" onclick="toggleEthTether(true)">▶ Start Ethernet LAN</button>
@@ -783,6 +870,63 @@
                 </div>
             </div>
         </div>
+
+        <!-- ================================================================= -->
+        <!-- TAB 6: DOWNSTREAM & UPSTREAM INTERFACES DASHBOARD -->
+        <!-- ================================================================= -->
+        <div id="tab-interfaces" class="tab-content">
+            <!-- Top Summary Card / Overview -->
+            <div class="card">
+                <div class="card-title">
+                    <span>🔀 Device Network Interface Architecture</span>
+                    <button class="btn-refresh" onclick="fetchInterfacesData(true)">🔄 Refresh Interfaces</button>
+                </div>
+                <div class="meter-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
+                    <div class="meter-card">
+                        <div class="meter-lbl">Total Interfaces</div>
+                        <div class="meter-num" id="lblTotalIfaces" style="color:#fff;">0</div>
+                    </div>
+                    <div class="meter-card">
+                        <div class="meter-lbl">Active (UP)</div>
+                        <div class="meter-num" id="lblActiveIfaces" style="color:var(--accent-green);">0</div>
+                    </div>
+                    <div class="meter-card">
+                        <div class="meter-lbl">Internet WAN</div>
+                        <div class="meter-num" id="lblWanIfaces" style="color:var(--accent-amber);">0</div>
+                    </div>
+                    <div class="meter-card">
+                        <div class="meter-lbl">Tether LAN</div>
+                        <div class="meter-num" id="lblLanIfaces" style="color:var(--accent-cyan);">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters & Search Toolbar -->
+            <div class="card" style="padding:12px 16px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:700; margin-right:4px;">FILTER:</span>
+                        <button class="pill-btn active" onclick="setIfaceFilter('all', this)">All Interfaces</button>
+                        <button class="pill-btn" onclick="setIfaceFilter('upstream', this)">🌐 Upstream (WAN)</button>
+                        <button class="pill-btn" onclick="setIfaceFilter('downstream', this)">📡 Downstream (LAN / Tether)</button>
+                        <button class="pill-btn" onclick="setIfaceFilter('cellular', this)">📶 Cellular & Modem</button>
+                        <button class="pill-btn" onclick="setIfaceFilter('ims', this)">📞 IMS & VoWiFi</button>
+                        <button class="pill-btn" onclick="setIfaceFilter('system', this)">⚙️ System & Kernel</button>
+                    </div>
+                    <div style="flex:1; min-width:220px; max-width:360px;">
+                        <input type="text" id="txtIfaceSearch" placeholder="🔍 Search name, IP, MAC, role..." oninput="onIfaceSearch(this.value)" style="width:100%; padding:6px 12px; font-size:0.8rem; background:var(--bg-input); border:1px solid var(--border); border-radius:8px; color:#fff;">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Interface Cards Grid -->
+            <div id="interfacesContainer" class="grid-2" style="margin-top:16px;">
+                <div style="grid-column: 1 / -1; text-align:center; padding:32px; color:var(--text-muted);">
+                    <div class="spinner" style="margin: 0 auto 12px;"></div>
+                    Scanning device network interfaces...
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
@@ -790,7 +934,49 @@
         let currentNavTab = 'tab-vap';
         let currentLogTab = 'hostapd';
         let cachedLogs = {};
+        let cachedInterfaces = [];
+        let currentIfaceFilter = 'all';
+        let currentIfaceSearch = '';
         let isBusy = false;
+
+        const upstreamExplanations = {
+            'auto': '<b>auto:</b> Automatically detects and follows the phone\'s primary active internet route (Cellular 5G/4G or connected Wi-Fi). Client traffic is intelligently routed through your active gateway.',
+            'v4-rmnet0': '<b>v4-rmnet0:</b> Cellular 464XLAT (CLAT) IPv4 tunnel over IPv6 5G/4G network (standard on Jio & Airtel). Recommended for sharing 5G/LTE data with PCs and consoles without IPv6 translation issues.',
+            'rmnet0': '<b>rmnet0:</b> Direct hardware cellular modem interface. Transports dual-stack IPv4v6 or native IPv6 carrier traffic directly from the MediaTek 5G baseband.',
+            'wlan0': '<b>wlan0:</b> Physical Wi-Fi radio in Station (STA) mode. Use this to turn your phone into a Wi-Fi Repeater / Range Extender, sharing a connected Wi-Fi network.',
+            'eth0': '<b>eth0:</b> External USB-to-Ethernet adapter. Use this when connecting an external wired broadband line or router as the phone\'s WAN internet source.'
+        };
+
+        function updateUpstreamExplanation(mode, val) {
+            const explainDivMap = {
+                'vap': 'upstreamExplainVap',
+                'hotspot': 'upstreamExplainHs',
+                'usb': 'upstreamExplainUsb',
+                'ethernet': 'upstreamExplainEth'
+            };
+            const divId = explainDivMap[mode];
+            if (divId && document.getElementById(divId)) {
+                document.getElementById(divId).innerHTML = upstreamExplanations[val] || `<b>${val}:</b> Direct network interface routing.`;
+            }
+        }
+
+        function onUpstreamChange(mode, val) {
+            updateUpstreamExplanation(mode, val);
+            fetch(`/cgi-bin/api.sh?action=set_upstream&mode=${mode}&upstream=${val}&_t=${Date.now()}`)
+                .then(r => r.json())
+                .then(d => {
+                    if (d.message) showToast('✅ ' + d.message);
+                })
+                .catch(e => console.error('set_upstream error:', e));
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
 
         function showToast(msg) {
             const t = document.getElementById('toast');
@@ -813,6 +999,9 @@
             const targetTab = document.getElementById(tabId);
             if (targetTab) targetTab.classList.add('active');
             try { history.replaceState(null, null, '#' + tabId); } catch(e) {}
+            if (tabId === 'tab-interfaces') {
+                fetchInterfacesData(false);
+            }
             refreshCurrentTab(false);
         }
 
@@ -906,7 +1095,10 @@
                     if (d.security) document.getElementById('selVapSecurity').value = d.security;
                     if (d.gateway) document.getElementById('txtVapGW').value = d.gateway;
                     if (d.dns) document.getElementById('txtVapDNS').value = d.dns;
-                    if (d.upstream && document.getElementById('selUpstream')) document.getElementById('selUpstream').value = d.upstream;
+                    if (d.upstream && document.getElementById('selUpstream')) {
+                        document.getElementById('selUpstream').value = d.upstream;
+                        updateUpstreamExplanation('vap', d.upstream);
+                    }
                     if (d.ap_iface && document.getElementById('selApIface')) document.getElementById('selApIface').value = d.ap_iface;
                     if (d.phy_iface && document.getElementById('selPhyIface')) document.getElementById('selPhyIface').value = d.phy_iface;
                 }
@@ -920,27 +1112,46 @@
                 const res = await fetch('/cgi-bin/api.sh?action=interfaces&_t=' + Date.now(), { cache: 'no-store' });
                 const d = await res.json();
 
+                if (d.all_interfaces && d.all_interfaces.length > 0) {
+                    cachedInterfaces = d.all_interfaces;
+                    renderInterfaceCards();
+                }
+
                 const selPhy = document.getElementById('selPhyIface');
-                const curPhy = selPhy.value;
-                selPhy.innerHTML = '';
-                (d.phy_interfaces || ['wlan0']).forEach(iface => {
-                    const opt = document.createElement('option');
-                    opt.value = iface;
-                    opt.innerText = iface + (iface === 'wlan0' ? ' (Built-in MediaTek Wi-Fi)' : ' (Wireless Radio)');
-                    if (iface === curPhy) opt.selected = true;
-                    selPhy.appendChild(opt);
+                if (selPhy) {
+                    const curPhy = selPhy.value;
+                    selPhy.innerHTML = '';
+                    (d.phy_interfaces || ['wlan0']).forEach(iface => {
+                        const opt = document.createElement('option');
+                        opt.value = iface;
+                        opt.innerText = iface + (iface === 'wlan0' ? ' (Built-in MediaTek Wi-Fi)' : ' (Wireless Radio)');
+                        if (iface === curPhy) opt.selected = true;
+                        selPhy.appendChild(opt);
+                    });
+                }
+
+                // Populate Upstream options across all 4 tethering modes
+                const upList = d.upstream_interfaces || [];
+                const upstreamSelectIds = ['selUpstream', 'selHsUpstream', 'selUsbUpstream', 'selEthUpstream'];
+                upstreamSelectIds.forEach(id => {
+                    const sel = document.getElementById(id);
+                    if (!sel) return;
+                    const curVal = sel.value;
+                    sel.innerHTML = '';
+                    upList.forEach(item => {
+                        if (id === 'selEthUpstream' && item.name.startsWith('eth')) return;
+                        const opt = document.createElement('option');
+                        opt.value = item.name;
+                        opt.innerText = item.label || item.name;
+                        if (item.name === curVal) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
                 });
 
-                const selUp = document.getElementById('selUpstream');
-                const curUp = selUp.value;
-                selUp.innerHTML = '';
-                (d.upstream_interfaces || []).forEach(item => {
-                    const opt = document.createElement('option');
-                    opt.value = item.name;
-                    opt.innerText = item.label || item.name;
-                    if (item.name === curUp) opt.selected = true;
-                    selUp.appendChild(opt);
-                });
+                if (document.getElementById('selUpstream')) updateUpstreamExplanation('vap', document.getElementById('selUpstream').value);
+                if (document.getElementById('selHsUpstream')) updateUpstreamExplanation('hotspot', document.getElementById('selHsUpstream').value);
+                if (document.getElementById('selUsbUpstream')) updateUpstreamExplanation('usb', document.getElementById('selUsbUpstream').value);
+                if (document.getElementById('selEthUpstream')) updateUpstreamExplanation('ethernet', document.getElementById('selEthUpstream').value);
             } catch(e) {
                 console.error('fetchVapInterfaces error:', e);
             }
@@ -1435,6 +1646,142 @@
         }
 
         // =====================================================================
+        // TAB 6: DOWNSTREAM & UPSTREAM INTERFACES DASHBOARD
+        // =====================================================================
+        function setIfaceFilter(cat, btn) {
+            currentIfaceFilter = cat;
+            document.querySelectorAll('#tab-interfaces .pill-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderInterfaceCards();
+        }
+
+        function onIfaceSearch(query) {
+            currentIfaceSearch = (query || '').toLowerCase().trim();
+            renderInterfaceCards();
+        }
+
+        function renderInterfaceCards() {
+            const container = document.getElementById('interfacesContainer');
+            if (!container) return;
+
+            let list = cachedInterfaces || [];
+
+            // Update overview numbers
+            let total = list.length;
+            let active = list.filter(i => i.is_up).length;
+            let wan = list.filter(i => i.status === 'internet' || (i.category === 'upstream' && i.is_up)).length;
+            let lan = list.filter(i => i.status === 'tether' || i.category === 'downstream').length;
+
+            if (document.getElementById('lblTotalIfaces')) document.getElementById('lblTotalIfaces').innerText = total;
+            if (document.getElementById('lblActiveIfaces')) document.getElementById('lblActiveIfaces').innerText = active;
+            if (document.getElementById('lblWanIfaces')) document.getElementById('lblWanIfaces').innerText = wan;
+            if (document.getElementById('lblLanIfaces')) document.getElementById('lblLanIfaces').innerText = lan;
+
+            // Apply category filter
+            if (currentIfaceFilter !== 'all') {
+                list = list.filter(i => i.category === currentIfaceFilter);
+            }
+
+            // Apply search filter
+            if (currentIfaceSearch) {
+                list = list.filter(i => {
+                    const matchName = (i.name || '').toLowerCase().includes(currentIfaceSearch);
+                    const matchRole = (i.role || '').toLowerCase().includes(currentIfaceSearch);
+                    const matchIp4 = (i.ip4 || '').toLowerCase().includes(currentIfaceSearch);
+                    const matchIp6 = (i.ip6 || '').toLowerCase().includes(currentIfaceSearch);
+                    const matchMac = (i.mac || '').toLowerCase().includes(currentIfaceSearch);
+                    const matchDesc = (i.description || '').toLowerCase().includes(currentIfaceSearch);
+                    return matchName || matchRole || matchIp4 || matchIp6 || matchMac || matchDesc;
+                });
+            }
+
+            if (list.length === 0) {
+                container.innerHTML = `<div style="grid-column: 1 / -1; text-align:center; padding:32px; color:var(--text-muted);">No matching interfaces found.</div>`;
+                return;
+            }
+
+            container.innerHTML = list.map(i => {
+                let badgeClass = 'sys';
+                if (i.category === 'upstream') badgeClass = 'wan';
+                else if (i.category === 'downstream') badgeClass = 'lan';
+                else if (i.category === 'cellular') badgeClass = 'modem';
+                else if (i.category === 'ims') badgeClass = 'ims';
+
+                let statusBadge = '';
+                if (i.status === 'internet') {
+                    statusBadge = `<span class="iface-status-pill internet"><span class="dot"></span>INTERNET (ACTIVE WAN)</span>`;
+                } else if (i.status === 'tether') {
+                    statusBadge = `<span class="iface-status-pill tether"><span class="dot"></span>TETHER LAN</span>`;
+                } else if (i.is_up) {
+                    statusBadge = `<span class="iface-status-pill active"><span class="dot"></span>ACTIVE (UP)</span>`;
+                } else {
+                    statusBadge = `<span class="iface-status-pill down"><span class="dot"></span>INACTIVE (DOWN)</span>`;
+                }
+
+                const rx = formatBytes(parseInt(i.rx_bytes) || 0);
+                const tx = formatBytes(parseInt(i.tx_bytes) || 0);
+
+                return `
+                    <div class="iface-card">
+                        <div class="iface-header">
+                            <div class="iface-name">
+                                <span>${i.name}</span>
+                            </div>
+                            <div class="iface-badges">
+                                <span class="iface-badge ${badgeClass}">${i.role || i.category}</span>
+                                ${statusBadge}
+                            </div>
+                        </div>
+
+                        <div class="iface-desc-box" style="margin-bottom:12px;">
+                            ${i.description || 'Internal network interface.'}
+                        </div>
+
+                        <div class="iface-grid">
+                            <div class="iface-prop">
+                                <div class="iface-prop-lbl">IPv4 Address</div>
+                                <div class="iface-prop-val" style="color:${i.ip4 ? 'var(--accent-cyan)' : 'var(--text-muted)'};">${i.ip4 ? (i.ip4_cidr || i.ip4) : 'None'}</div>
+                            </div>
+                            <div class="iface-prop">
+                                <div class="iface-prop-lbl">Hardware MAC</div>
+                                <div class="iface-prop-val" style="color:${i.mac && i.mac !== '00:00:00:00:00:00' ? '#fff' : 'var(--text-muted)'};">${i.mac || 'None'}</div>
+                            </div>
+                            <div class="iface-prop">
+                                <div class="iface-prop-lbl">Link State / MTU</div>
+                                <div class="iface-prop-val">${(i.state || (i.is_up ? 'UP' : 'DOWN')).toUpperCase()} / MTU ${i.mtu || 1500}</div>
+                            </div>
+                            <div class="iface-prop">
+                                <div class="iface-prop-lbl">Traffic (RX / TX)</div>
+                                <div class="iface-prop-val" style="font-size:0.75rem;">⬇️ ${rx} &nbsp;|&nbsp; ⬆️ ${tx}</div>
+                            </div>
+                        </div>
+
+                        ${i.ip6 ? `
+                        <div class="iface-prop" style="margin-top:6px;">
+                            <div class="iface-prop-lbl">IPv6 Global / Subnet</div>
+                            <div class="iface-prop-val" style="font-size:0.73rem; color:#94a3b8;">${i.ip6}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function fetchInterfacesData(manual) {
+            try {
+                if (manual) showToast('🔄 Refreshing all device interfaces...');
+                const res = await fetch('/cgi-bin/api.sh?action=interfaces&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+                if (d.all_interfaces) {
+                    cachedInterfaces = d.all_interfaces;
+                    renderInterfaceCards();
+                }
+            } catch(e) {
+                console.error('fetchInterfacesData error:', e);
+            }
+        }
+
+        // =====================================================================
         // DISPATCHER & AUTO-POLLER
         // =====================================================================
         function refreshCurrentTab(manual) {
@@ -1449,6 +1796,8 @@
                 fetchUsbStatus();
             } else if (currentNavTab === 'tab-ethernet') {
                 fetchEthStatus();
+            } else if (currentNavTab === 'tab-interfaces') {
+                fetchInterfacesData(manual);
             } else if (currentNavTab === 'tab-settings') {
                 fetchSettingsStatus();
             }

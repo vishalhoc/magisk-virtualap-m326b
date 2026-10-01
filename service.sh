@@ -104,6 +104,23 @@ MODDIR="${0%/*}"
         if ! pgrep -f "httpd.*8088" >/dev/null 2>&1; then
             /data/adb/magisk/busybox httpd -p 0.0.0.0:8088 -h /data/local/virtualap/web 2>/dev/null
         fi
+        # Maintain Dedicated Router Mode (prevent 5-10 minute mobile data drop)
+        if [ -f "/data/local/virtualap/dedicated_router.flag" ]; then
+            settings put global mobile_data_always_on 1 2>/dev/null || true
+            svc data enable 2>/dev/null || true
+
+            # Periodic 60s cellular WAN keepalive
+            KEEPALIVE_CNT=${KEEPALIVE_CNT:-0}
+            KEEPALIVE_CNT=$((KEEPALIVE_CNT + 1))
+            if [ $KEEPALIVE_CNT -ge 6 ]; then
+                KEEPALIVE_CNT=0
+                if [ -d "/sys/class/net/v4-rmnet0" ]; then
+                    ping -c 1 -W 2 -I v4-rmnet0 1.1.1.1 >/dev/null 2>&1 || true
+                elif [ -d "/sys/class/net/rmnet0" ]; then
+                    ping -c 1 -W 2 -I rmnet0 1.1.1.1 >/dev/null 2>&1 || true
+                fi
+            fi
+        fi
     }
 
     # Initial wake and setup
