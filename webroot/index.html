@@ -147,6 +147,24 @@
         .meter-card { background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; }
         .meter-num { font-size: 1.25rem; font-weight: 700; color: #fff; font-family: ui-monospace, monospace; margin-top: 4px; }
         .meter-lbl { font-size: 0.74rem; color: var(--text-muted); text-transform: uppercase; }
+
+        /* Settings specific styles */
+        .info-box {
+            background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.25);
+            border-radius: 8px; padding: 12px 14px; font-size: 0.8rem; line-height: 1.5; color: #cbd5e1; margin-bottom: 14px;
+        }
+        .info-box h4 { color: var(--accent-cyan); font-size: 0.85rem; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+        .danger-box {
+            background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25);
+            border-radius: 8px; padding: 12px 14px; font-size: 0.8rem; line-height: 1.5; color: #fca5a5; margin-bottom: 14px;
+        }
+        .danger-box h4 { color: var(--accent-red); font-size: 0.85rem; margin-bottom: 6px; }
+        .badge-pill {
+            display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700;
+        }
+        .badge-pill.green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .badge-pill.amber { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); }
+        .badge-pill.cyan { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); }
     </style>
 </head>
 <body>
@@ -160,6 +178,7 @@
                 <p>Samsung Galaxy M32 5G (SM-M326B / Dimensity 720)</p>
             </div>
             <div class="header-actions">
+                <button class="btn-refresh" id="btnHeaderSettings" onclick="openSettingsTab()" style="background:#1e293b; color:var(--accent-cyan); border-color:var(--accent-cyan);">⚙️ Settings & Bypass</button>
                 <button class="btn-refresh" onclick="refreshCurrentTab(true)">🔄 Refresh</button>
             </div>
         </header>
@@ -170,6 +189,7 @@
             <button class="nav-tab" onclick="switchNav('tab-hotspot', this)">🔥 Mobile Hotspot</button>
             <button class="nav-tab" onclick="switchNav('tab-usb', this)">🔌 USB Tethering</button>
             <button class="nav-tab" onclick="switchNav('tab-ethernet', this)">🌐 Ethernet</button>
+            <button class="nav-tab" id="navTabSettings" onclick="switchNav('tab-settings', this)">⚙️ Settings & Bypass</button>
         </div>
 
         <!-- ================================================================= -->
@@ -199,6 +219,18 @@
                 <!-- Right: Configuration & Controls -->
                 <div class="card">
                     <div class="card-title">⚙️ Interface & Wi-Fi Settings</div>
+
+                    <!-- Native App Mode Toggle (Disable Module Modifications) -->
+                    <div class="switch-row" style="background: rgba(245, 158, 11, 0.08); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid rgba(245, 158, 11, 0.25);">
+                        <div class="switch-info">
+                            <div class="switch-title" style="color:var(--accent-amber);">Disable Module Modifications (Native App Mode)</div>
+                            <div class="switch-desc">Allows standalone VirtualAP App (com.virtualap.app) to manage Wi-Fi and AP independently without module hooks.</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkVapNativeMode" onchange="toggleNativeMode(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
 
                     <!-- Autostart Toggle -->
                     <div class="switch-row" style="padding-top:0;">
@@ -578,6 +610,179 @@
                 </div>
             </div>
         </div>
+
+        <!-- ================================================================= -->
+        <!-- TAB 5: SETTINGS & CARRIER BYPASS -->
+        <!-- ================================================================= -->
+        <div id="tab-settings" class="tab-content">
+            <!-- Top Alert / Notice -->
+            <div class="info-box">
+                <h4>🛡️ Advanced Carrier Stealth & Traffic Isolation</h4>
+                Controls below enforce network stealth across <b>ALL tethering methods</b> (Wi-Fi Hotspot, USB Tethering, Ethernet, and Virtual AP <code>ap0</code>), and allow you to dedicate 100% of mobile data exclusively to connected clients.
+            </div>
+
+            <div class="grid-2">
+                <!-- Card 1: Carrier Hotspot Detection Bypass -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>🛡️ Carrier Hotspot Detection Bypass</span>
+                        <div id="bypassStatusBadge" class="status-badge stopped">
+                            <span class="dot"></span>
+                            <span id="bypassStatusText">DISABLED</span>
+                        </div>
+                    </div>
+
+                    <div class="switch-row">
+                        <div class="switch-info">
+                            <div class="switch-title" style="color:var(--accent-cyan); font-weight:700;">Master Carrier Bypass</div>
+                            <div class="switch-desc">Cloaks tethering across Hotspot, USB, Ethernet, and Virtual AP (ap0)</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkMasterBypass" onchange="toggleBypass(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div style="margin-top: 14px; font-size: 0.8rem;">
+                        <div class="stat-row">
+                            <span class="stat-label">DUN APN & Entitlement</span>
+                            <span class="stat-val" id="lblDunBypassState" style="color:var(--accent-green);">Bypassed</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">TCP MSS Clamping (PMTU)</span>
+                            <span class="stat-val" id="lblMssClampState" style="color:var(--accent-green);">Active</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">DNS Leak & DPI Protection</span>
+                            <span class="stat-val" id="lblDnsProtectState" style="color:var(--accent-green);">1.1.1.1 Cloaked</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">IPv6 EUI-64 Leak Shield</span>
+                            <span class="stat-val" id="lblIpv6ProtectState" style="color:var(--accent-green);">Blocked</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Sysctl Default Hop Limit</span>
+                            <span class="stat-val" id="lblTtlState">TTL 64</span>
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="margin-top: 14px;">
+                        <label>Sysctl Default Hop Limit / TTL</label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="number" id="txtTargetTtl" value="64" min="32" max="255">
+                            <button class="btn-save" onclick="applyTtlConfig()">Save TTL</button>
+                        </div>
+                        <div class="input-hint">Default 64 matches native Android/Linux stack packets to carrier towers.</div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Dedicated Router Mode (100% Data to Tethering) -->
+                <div class="card">
+                    <div class="card-title">
+                        <span>🚀 Dedicated Router Mode</span>
+                        <div id="routerStatusBadge" class="status-badge stopped">
+                            <span class="dot"></span>
+                            <span id="routerStatusText">DISABLED</span>
+                        </div>
+                    </div>
+
+                    <div class="switch-row">
+                        <div class="switch-info">
+                            <div class="switch-title" style="color:var(--accent-green); font-weight:700;">Block All Android Apps Internet</div>
+                            <div class="switch-desc">Dedicates 100% of mobile data WAN strictly to tethered devices (Hotspot, USB, Eth, ap0)</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="chkDedicatedRouter" onchange="toggleDedicatedRouter(this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="danger-box" style="margin-top:12px;">
+                        <h4>⚠️ Traffic Isolation Active</h4>
+                        When enabled, <b>no app on this Android device</b> (Play Store, Chrome, background sync, downloads) can use mobile data. Only forwarded packets from tethered devices (PC, laptop, console) will have high-speed 5G/LTE access. Local Web Control Panel (8088/8093) remains accessible.
+                    </div>
+
+                    <div class="stat-row">
+                        <span class="stat-label">Mobile WAN Filter</span>
+                        <span class="stat-val" id="lblRouterWanFilter" style="color:var(--accent-amber);">All Phone Apps DROPPED</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Forwarding Chains</span>
+                        <span class="stat-val" style="color:var(--accent-green);">100% Full Speed Unrestricted</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Web UI Management</span>
+                        <span class="stat-val" style="color:var(--accent-cyan);">Protected (localhost / LAN)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 3: Native App Mode -->
+            <div class="card">
+                <div class="card-title">
+                    <span>📱 Standalone Native App Mode</span>
+                    <div id="nativeStatusBadge" class="status-badge stopped">
+                        <span class="dot"></span>
+                        <span id="nativeStatusText">MODULE ACTIVE</span>
+                    </div>
+                </div>
+
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <div class="switch-title" style="color:var(--accent-amber); font-weight:700;">Disable All Module Interception</div>
+                        <div class="switch-desc">Allows the official VirtualAP App (com.virtualap.app) to manage interfaces without module daemon interference</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkNativeModeSettings" onchange="toggleNativeMode(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-top:10px;">
+                    When enabled, the module stops its background <code>ap0</code> daemon and <code>iw</code> wrapper hooks, allowing the original Android app to initialize its own interfaces natively. The Web Control Panel remains available so you can re-enable module optimizations anytime.
+                </p>
+            </div>
+
+            <!-- Card 4: How Carriers Detect Hotspot (Educational Guide) -->
+            <div class="card">
+                <div class="card-title">🧠 How Cellular Carriers Detect Hotspot / Tethering (Technical Breakdown)</div>
+                <div style="font-size: 0.83rem; line-height: 1.6; color: #cbd5e1;">
+                    <div style="margin-bottom: 12px;">
+                        <span class="badge-pill cyan">Vector 1</span> <b style="color:#fff;">IP TTL (Time To Live) & Hop Limit Discrepancy</b>
+                        <p style="color:var(--text-muted); margin-top:2px;">
+                            Standard Android phone packets originate with <code>TTL=64</code>. Windows computers originate with <code>TTL=128</code>. When a PC sends packets through a phone, the phone's Linux kernel decrements TTL by 1, resulting in <code>TTL=127</code> arriving at the carrier tower. Seeing packets with TTL 127 or odd decrements immediately flags tethered traffic.
+                        </p>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <span class="badge-pill green">Vector 2</span> <b style="color:#fff;">Dedicated DUN APN & Carrier Entitlement Check</b>
+                        <p style="color:var(--text-muted); margin-top:2px;">
+                            Android's <code>TetheringManager</code> is programmed by mobile carriers to route hotspot traffic through a dedicated APN (<code>type=dun</code>) or query a provisioning server. Our module permanently disables <code>tether_dun_required</code> and clears entitlement checks so all tethering uses regular mobile data.
+                        </p>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <span class="badge-pill amber">Vector 3</span> <b style="color:#fff;">TCP MSS & SYN Packet Profiling (TCP Fingerprinting)</b>
+                        <p style="color:var(--text-muted); margin-top:2px;">
+                            Windows, macOS, and Linux have distinct TCP SYN packet signatures (Window Scale, Selective ACKs, and default MTU/MSS sizes). By clamping MSS to PMTU (<code>iptables -t mangle -j TCPMSS --clamp-mss-to-pmtu</code>), packets are reshaped to standard mobile MTU boundaries.
+                        </p>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <span class="badge-pill cyan">Vector 4</span> <b style="color:#fff;">DNS Inspection & Deep Packet Inspection (DPI)</b>
+                        <p style="color:var(--text-muted); margin-top:2px;">
+                            When a PC connects, it queries desktop-specific domains (e.g., <code>windowsupdate.com</code>, <code>steamcommunity.com</code>, <code>apple.com</code>). If queries go to the carrier's DNS servers, carrier DPI logs these queries as proof of PC tethering. Our module transparently redirects all port 53 DNS queries to encrypted/neutral <code>1.1.1.1</code>.
+                        </p>
+                    </div>
+
+                    <div>
+                        <span class="badge-pill amber">Vector 5</span> <b style="color:#fff;">IPv6 SLAAC & EUI-64 MAC Leakage</b>
+                        <p style="color:var(--text-muted); margin-top:2px;">
+                            IPv6 global addresses often encode the connected device's MAC address (EUI-64) or obtain separate IPv6 global SLAAC addresses under the subscriber's prefix. Dropping IPv6 forwarding forces all client traffic over single-IP IPv4 NAT, cloaking device identity.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Scripts -->
@@ -594,12 +799,20 @@
             setTimeout(() => t.classList.remove('show'), 3200);
         }
 
+        function openSettingsTab() {
+            const tabBtn = document.getElementById('navTabSettings');
+            switchNav('tab-settings', tabBtn);
+        }
+
         function switchNav(tabId, el) {
             currentNavTab = tabId;
             document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            el.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
+            const targetBtn = el || document.querySelector('.nav-tab[onclick*="' + tabId + '"]') || document.getElementById('navTabSettings');
+            if (targetBtn) targetBtn.classList.add('active');
+            const targetTab = document.getElementById(tabId);
+            if (targetTab) targetTab.classList.add('active');
+            try { history.replaceState(null, null, '#' + tabId); } catch(e) {}
             refreshCurrentTab(false);
         }
 
@@ -676,8 +889,10 @@
                 document.getElementById('lblVapBandChan').innerText = (d.band === '5' ? '5 GHz' : '2.4 GHz') + ' / Channel ' + (d.channel || 'auto');
                 document.getElementById('lblVapWidth').innerText = (d.width || '20') + ' MHz';
                 document.getElementById('lblVapGateway').innerText = d.gateway || '192.168.42.1';
-                document.getElementById('lblVapClients').innerText = d.clients || 0;
                 document.getElementById('chkAutostart').checked = !!d.autostart;
+                if (document.getElementById('chkVapNativeMode')) {
+                    document.getElementById('chkVapNativeMode').checked = !!d.native_mode;
+                }
 
                 if (!isBusy && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
                     if (d.ssid) document.getElementById('txtVapSSID').value = d.ssid;
@@ -1097,6 +1312,129 @@
         }
 
         // =====================================================================
+        // TAB 5: SETTINGS & CARRIER BYPASS FUNCTIONS
+        // =====================================================================
+        async function fetchSettingsStatus() {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=settings_status&_t=' + Date.now(), { cache: 'no-store' });
+                const d = await res.json();
+
+                // Master bypass badge & checkbox
+                const bypassBadge = document.getElementById('bypassStatusBadge');
+                const bypassTxt = document.getElementById('bypassStatusText');
+                const chkMaster = document.getElementById('chkMasterBypass');
+                if (d.carrier_bypass) {
+                    bypassBadge.className = 'status-badge active';
+                    bypassTxt.innerText = 'ACTIVE';
+                    chkMaster.checked = true;
+                } else {
+                    bypassBadge.className = 'status-badge stopped';
+                    bypassTxt.innerText = 'DISABLED';
+                    chkMaster.checked = false;
+                }
+
+                // Sub indicators
+                document.getElementById('lblDunBypassState').innerText = d.dun_bypass ? 'Bypassed (type=default)' : 'Default (Stock)';
+                document.getElementById('lblDunBypassState').style.color = d.dun_bypass ? 'var(--accent-green)' : 'var(--text-muted)';
+                document.getElementById('lblMssClampState').innerText = d.mss_clamp ? 'Active (PMTU clamped)' : 'Disabled';
+                document.getElementById('lblMssClampState').style.color = d.mss_clamp ? 'var(--accent-green)' : 'var(--text-muted)';
+                document.getElementById('lblDnsProtectState').innerText = d.dns_protect ? '1.1.1.1 Cloaked' : 'Carrier Default';
+                document.getElementById('lblDnsProtectState').style.color = d.dns_protect ? 'var(--accent-green)' : 'var(--text-muted)';
+                document.getElementById('lblIpv6ProtectState').innerText = d.ipv6_protect ? 'Blocked (EUI-64 Shielded)' : 'Exposed';
+                document.getElementById('lblIpv6ProtectState').style.color = d.ipv6_protect ? 'var(--accent-green)' : 'var(--accent-amber)';
+                document.getElementById('lblTtlState').innerText = 'TTL ' + (d.target_ttl || 64);
+                if (document.activeElement.id !== 'txtTargetTtl') {
+                    document.getElementById('txtTargetTtl').value = d.target_ttl || 64;
+                }
+
+                // Dedicated router badge & checkbox
+                const rBadge = document.getElementById('routerStatusBadge');
+                const rTxt = document.getElementById('routerStatusText');
+                const chkRouter = document.getElementById('chkDedicatedRouter');
+                if (d.dedicated_router) {
+                    rBadge.className = 'status-badge active';
+                    rTxt.innerText = 'ACTIVE (100% ROUTER)';
+                    chkRouter.checked = true;
+                    document.getElementById('lblRouterWanFilter').innerText = 'All Phone Apps DROPPED';
+                    document.getElementById('lblRouterWanFilter').style.color = 'var(--accent-red)';
+                } else {
+                    rBadge.className = 'status-badge stopped';
+                    rTxt.innerText = 'DISABLED';
+                    chkRouter.checked = false;
+                    document.getElementById('lblRouterWanFilter').innerText = 'Normal (Phone Apps Allowed)';
+                    document.getElementById('lblRouterWanFilter').style.color = 'var(--text-muted)';
+                }
+
+                // Native mode badge & checkboxes
+                const nBadge = document.getElementById('nativeStatusBadge');
+                const nTxt = document.getElementById('nativeStatusText');
+                const chkNative = document.getElementById('chkNativeModeSettings');
+                const chkVapNative = document.getElementById('chkVapNativeMode');
+                if (d.native_mode) {
+                    nBadge.className = 'status-badge stopped';
+                    nTxt.innerText = 'NATIVE APP MODE';
+                    chkNative.checked = true;
+                    if (chkVapNative) chkVapNative.checked = true;
+                } else {
+                    nBadge.className = 'status-badge active';
+                    nTxt.innerText = 'MODULE ACTIVE';
+                    chkNative.checked = false;
+                    if (chkVapNative) chkVapNative.checked = false;
+                }
+            } catch(e) {
+                console.error('fetchSettingsStatus error:', e);
+            }
+        }
+
+        async function toggleBypass(enable) {
+            const ttl = document.getElementById('txtTargetTtl').value || '64';
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=settings_toggle_bypass&enable=${enable ? '1' : '0'}&ttl=${ttl}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+                fetchSettingsStatus();
+            } catch(e) {
+                showToast('❌ Failed to toggle carrier bypass: ' + e);
+            }
+        }
+
+        async function applyTtlConfig() {
+            const ttl = document.getElementById('txtTargetTtl').value || '64';
+            const isMaster = document.getElementById('chkMasterBypass').checked;
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=settings_toggle_bypass&enable=${isMaster ? '1' : '0'}&ttl=${ttl}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast('✅ TTL configuration updated: ' + ttl);
+                fetchSettingsStatus();
+            } catch(e) {
+                showToast('❌ Failed to save TTL: ' + e);
+            }
+        }
+
+        async function toggleDedicatedRouter(enable) {
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=settings_toggle_dedicated_router&enable=${enable ? '1' : '0'}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+                fetchSettingsStatus();
+            } catch(e) {
+                showToast('❌ Failed to toggle dedicated router: ' + e);
+            }
+        }
+
+        async function toggleNativeMode(enable) {
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=settings_toggle_native_mode&enable=${enable ? '1' : '0'}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message);
+                fetchSettingsStatus();
+                fetchVapStatus();
+            } catch(e) {
+                showToast('❌ Failed to toggle native mode: ' + e);
+            }
+        }
+
+        // =====================================================================
         // DISPATCHER & AUTO-POLLER
         // =====================================================================
         function refreshCurrentTab(manual) {
@@ -1111,14 +1449,21 @@
                 fetchUsbStatus();
             } else if (currentNavTab === 'tab-ethernet') {
                 fetchEthStatus();
+            } else if (currentNavTab === 'tab-settings') {
+                fetchSettingsStatus();
             }
         }
 
         // Initial setup
         updateChannelList();
-        fetchVapInterfaces().then(() => fetchVapStatus());
-        fetchVapClients();
-        fetchLogs();
+        if (location.hash && document.querySelector(location.hash)) {
+            const hashId = location.hash.replace('#', '');
+            switchNav(hashId, null);
+        } else {
+            fetchVapInterfaces().then(() => fetchVapStatus());
+            fetchVapClients();
+            fetchLogs();
+        }
 
         // 3-second live auto-polling with cache buster
         setInterval(() => {

@@ -1,8 +1,8 @@
 id=virtualap_m326b_fix
 name=VirtualAP Fix & Web Control Panel (M32 5G)
-version=v2.6
-versionCode=260
+version=v2.7
+versionCode=270
 author=Antigravity
-description=VirtualAP & Connectivity Hub for Galaxy M32 5G (Dimensity 720). Hardware-level ap0 fix without Wi-Fi or Hotspot dependencies, MTK driver wake, and 4-Tab Web Control Panel.
+description=VirtualAP & Connectivity Hub for Galaxy M32 5G (Dimensity 720). Hardware-level ap0 fix, Carrier Hotspot Detection Bypass across all tether modes, Dedicated Router Mode (isolates phone apps), and 5-Tab Web Control Panel.
 actionTitle=Open Connectivity Hub
 web=true

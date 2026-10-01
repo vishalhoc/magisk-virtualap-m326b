@@ -56,6 +56,15 @@ MODDIR="${0%/*}"
 
     # Function to maintain MTK Wi-Fi driver power and ap0 presence
     maintain_ap0() {
+        # Check if Native Mode is active (module modifications completely disabled)
+        if [ -f "/data/local/virtualap/native_mode.flag" ]; then
+            # Keep WebUI alive so user can toggle back or configure settings
+            if ! pgrep -f "httpd.*8088" >/dev/null 2>&1; then
+                /data/adb/magisk/busybox httpd -p 0.0.0.0:8088 -h /data/local/virtualap/web 2>/dev/null
+            fi
+            return 0
+        fi
+
         # Keep MTK Wi-Fi driver powered on without enabling Android Wi-Fi / Hotspot
         if [ -e /dev/wmtWifi ]; then
             echo 1 > /dev/wmtWifi 2>/dev/null

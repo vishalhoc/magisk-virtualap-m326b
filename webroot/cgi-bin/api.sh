@@ -218,7 +218,8 @@ EOF
     "started": "${started:-}",
     "hostapd": "${hostapd:-dead}",
     "dnsmasq": "${dnsmasq:-dead}",
-    "autostart": $AUTOSTART_VAL
+    "autostart": $AUTOSTART_VAL,
+    "native_mode": $([ -f "/data/local/virtualap/native_mode.flag" ] && echo "true" || echo "false")
 }
 EOF
         ;;
@@ -798,6 +799,195 @@ EOF
             # DHCP mode
             /data/adb/magisk/busybox udhcpc -i "$IFACE" -n -q -t 5 >/dev/null 2>&1 &
             echo "{\"success\": true, \"message\": \"DHCP client dispatched on $IFACE\"}"
+        fi
+        ;;
+
+    # =========================================================================
+    # TAB 5: CARRIER BYPASS & SYSTEM SETTINGS ENDPOINTS
+    # =========================================================================
+    settings_status)
+        SETTINGS_CONF="/data/local/virtualap/settings.conf"
+        [ -f "$SETTINGS_CONF" ] && . "$SETTINGS_CONF"
+
+        [ -z "$CFG_CARRIER_BYPASS" ] && CFG_CARRIER_BYPASS="0"
+        [ -z "$CFG_TARGET_TTL" ] && CFG_TARGET_TTL="64"
+        [ -z "$CFG_DUN_BYPASS" ] && CFG_DUN_BYPASS="1"
+        [ -z "$CFG_MSS_CLAMP" ] && CFG_MSS_CLAMP="1"
+        [ -z "$CFG_DNS_PROTECT" ] && CFG_DNS_PROTECT="1"
+        [ -z "$CFG_IPV6_PROTECT" ] && CFG_IPV6_PROTECT="1"
+        [ -z "$CFG_DEDICATED_ROUTER" ] && CFG_DEDICATED_ROUTER="0"
+        [ -z "$CFG_NATIVE_MODE" ] && CFG_NATIVE_MODE="0"
+
+        # Check real-time iptables status
+        ROUTER_ACTIVE="false"
+        if /system/bin/iptables -w 2 -L OUTPUT -n 2>/dev/null | grep -q "DEDICATED_ROUTER_OUT"; then
+            ROUTER_ACTIVE="true"
+        fi
+
+        BYPASS_ACTIVE="false"
+        DUN_REQ=$(settings get global tether_dun_required 2>/dev/null || echo "1")
+        if [ "$DUN_REQ" = "0" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            BYPASS_ACTIVE="true"
+        fi
+
+        NATIVE_FLAG_ACTIVE="false"
+        [ -f "/data/local/virtualap/native_mode.flag" ] && NATIVE_FLAG_ACTIVE="true"
+
+        cat <<EOF
+{
+    "carrier_bypass": $BYPASS_ACTIVE,
+    "target_ttl": $CFG_TARGET_TTL,
+    "dun_bypass": $([ "$DUN_REQ" = "0" ] && echo "true" || echo "false"),
+    "mss_clamp": $([ "$CFG_MSS_CLAMP" = "1" ] && echo "true" || echo "false"),
+    "dns_protect": $([ "$CFG_DNS_PROTECT" = "1" ] && echo "true" || echo "false"),
+    "ipv6_protect": $([ "$CFG_IPV6_PROTECT" = "1" ] && echo "true" || echo "false"),
+    "dedicated_router": $ROUTER_ACTIVE,
+    "native_mode": $NATIVE_FLAG_ACTIVE
+}
+EOF
+        ;;
+
+    settings_toggle_bypass)
+        ENABLE=$(get_param "enable" "1")
+        TTL_VAL=$(get_param "ttl" "64")
+        [ -z "$TTL_VAL" ] && TTL_VAL="64"
+        SETTINGS_CONF="/data/local/virtualap/settings.conf"
+
+        if [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ]; then
+            # 1. Disable DUN APN requirement and entitlement verification
+            settings put global tether_dun_required 0 2>/dev/null
+            settings put global tether_dun_apn "" 2>/dev/null
+            settings put global tether_entitlement_check_state 0 2>/dev/null
+            setprop net.tethering.noprovisioning true 2>/dev/null
+            setprop persist.sys.tether.noprovisioning true 2>/dev/null
+
+            # 2. Sysctl default hop limit & TTL
+            sysctl -w net.ipv4.ip_default_ttl="$TTL_VAL" 2>/dev/null || true
+            sysctl -w net.ipv6.conf.all.hop_limit="$TTL_VAL" 2>/dev/null || true
+            sysctl -w net.ipv6.conf.default.hop_limit="$TTL_VAL" 2>/dev/null || true
+
+            # 3. TCP MSS Clamping to PMTU across all forwarded interfaces
+            /system/bin/iptables -w 5 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -I FORWARD 1 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+
+            # 4. DNS Leak Protection: redirect client DNS lookups to 1.1.1.1
+            /system/bin/iptables -w 5 -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -I PREROUTING 1 -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -I PREROUTING 1 -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+
+            # 5. IPv6 Leak Protection: block global IPv6 tether leaks to carrier
+            /system/bin/ip6tables -w 5 -D FORWARD -j DROP 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -I FORWARD 1 -j DROP 2>/dev/null || true
+
+            # Save state
+            cat <<EOF > "$SETTINGS_CONF"
+CFG_CARRIER_BYPASS="1"
+CFG_TARGET_TTL="$TTL_VAL"
+CFG_DUN_BYPASS="1"
+CFG_MSS_CLAMP="1"
+CFG_DNS_PROTECT="1"
+CFG_IPV6_PROTECT="1"
+EOF
+            echo "{\"success\": true, \"carrier_bypass\": true, \"message\": \"Carrier Hotspot Bypass ACTIVE for all tethering modes\"}"
+        else
+            # Revert bypass
+            settings put global tether_dun_required 1 2>/dev/null
+            settings put global tether_entitlement_check_state 1 2>/dev/null
+            setprop net.tethering.noprovisioning false 2>/dev/null
+            setprop persist.sys.tether.noprovisioning false 2>/dev/null
+
+            /system/bin/iptables -w 5 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -D FORWARD -j DROP 2>/dev/null || true
+
+            cat <<EOF > "$SETTINGS_CONF"
+CFG_CARRIER_BYPASS="0"
+CFG_TARGET_TTL="64"
+CFG_DUN_BYPASS="0"
+CFG_MSS_CLAMP="0"
+CFG_DNS_PROTECT="0"
+CFG_IPV6_PROTECT="0"
+EOF
+            echo "{\"success\": true, \"carrier_bypass\": false, \"message\": \"Carrier Hotspot Bypass disabled\"}"
+        fi
+        ;;
+
+    settings_toggle_dedicated_router)
+        ENABLE=$(get_param "enable" "1")
+        if [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ]; then
+            # 1. Create or flush dedicated router output filter
+            /system/bin/iptables -w 5 -N DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/iptables -w 5 -F DEDICATED_ROUTER_OUT 2>/dev/null || true
+            
+            # Allow loopback (localhost services, WebUI 8088/8093)
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o lo -j ACCEPT
+            
+            # Allow LAN / Tether subnets so connected clients can reach phone / gateway
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o ap0 -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o swlan+ -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o wlan+ -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o rndis+ -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o usb+ -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o eth+ -j ACCEPT
+            
+            # Allow DHCP and DNS resolution for tethered clients
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p udp --dport 53 -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p tcp --dport 53 -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p udp --sport 67:68 -j ACCEPT
+            
+            # BLOCK ALL on-device Android apps from accessing Mobile Data WAN!
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o ccmni+ -j DROP
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o rmnet+ -j DROP
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o v4-rmnet+ -j DROP
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o pdp+ -j DROP
+            
+            /system/bin/iptables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/iptables -w 5 -I OUTPUT 1 -j DEDICATED_ROUTER_OUT 2>/dev/null || true
+
+            # IPv6 filter
+            /system/bin/ip6tables -w 5 -N DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -F DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o lo -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o ap0 -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o swlan+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o wlan+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o rndis+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o usb+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o eth+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -p udp --dport 53 -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -p tcp --dport 53 -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o ccmni+ -j DROP
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o rmnet+ -j DROP
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o v4-rmnet+ -j DROP
+            /system/bin/ip6tables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -I OUTPUT 1 -j DEDICATED_ROUTER_OUT 2>/dev/null || true
+
+            echo "{\"success\": true, \"dedicated_router\": true, \"message\": \"Dedicated Router Active: Phone apps isolated from internet, 100% data routed to tethering\"}"
+        else
+            /system/bin/iptables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/iptables -w 5 -F DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/iptables -w 5 -X DEDICATED_ROUTER_OUT 2>/dev/null || true
+
+            /system/bin/ip6tables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -F DEDICATED_ROUTER_OUT 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -X DEDICATED_ROUTER_OUT 2>/dev/null || true
+
+            echo "{\"success\": true, \"dedicated_router\": false, \"message\": \"Dedicated Router Mode disabled: Phone apps have normal internet access\"}"
+        fi
+        ;;
+
+    settings_toggle_native_mode)
+        ENABLE=$(get_param "enable" "1")
+        FLAG="/data/local/virtualap/native_mode.flag"
+        if [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ]; then
+            touch "$FLAG"
+            /data/local/virtualap/start-ap stop 2>/dev/null || true
+            echo "{\"success\": true, \"native_mode\": true, \"message\": \"Module overrides disabled: VirtualAP App can operate 100% independently\"}"
+        else
+            rm -f "$FLAG"
+            echo "{\"success\": true, \"native_mode\": false, \"message\": \"Module enhancements and Web Control Panel re-enabled\"}"
         fi
         ;;
 

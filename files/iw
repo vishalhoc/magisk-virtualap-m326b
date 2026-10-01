@@ -5,6 +5,11 @@
 REAL_IW="/data/local/virtualap/bin/iw.real"
 [ ! -x "$REAL_IW" ] && REAL_IW="/system/bin/iw"
 
+# Native Mode: If user opted to disable module modifications completely, execute real iw directly
+if [ -f "/data/local/virtualap/native_mode.flag" ]; then
+    exec "$REAL_IW" "$@"
+fi
+
 # Always ensure MTK Wi-Fi driver is awake
 if [ -e /dev/wmtWifi ]; then
     echo 1 > /dev/wmtWifi 2>/dev/null
