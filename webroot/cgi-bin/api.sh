@@ -1212,6 +1212,87 @@ EOF
         esac
         ;;
 
+    # =========================================================================
+    # TAB 6: DOWNSTREAM NETWORK ADB & ROOT CONTROLLER ENDPOINTS
+    # =========================================================================
+    adb_status)
+        ADB_HELPER="/data/local/virtualap/bin/adb_helper.sh"
+        if [ -x "$ADB_HELPER" ]; then
+            $ADB_HELPER status
+        else
+            echo "{\"success\": false, \"error\": \"ADB helper not installed\"}"
+        fi
+        ;;
+
+    adb_toggle)
+        ENABLE=$(get_param "enable" "1")
+        PORT=$(get_param "port" "5555")
+        ADB_HELPER="/data/local/virtualap/bin/adb_helper.sh"
+        if [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ]; then
+            $ADB_HELPER start "$PORT"
+            echo "{\"success\": true, \"enabled\": true, \"message\": \"Downstream Network ADB activated on port $PORT\"}"
+        else
+            $ADB_HELPER stop
+            echo "{\"success\": true, \"enabled\": false, \"message\": \"Downstream Network ADB disabled\"}"
+        fi
+        ;;
+
+    adb_set_port)
+        PORT=$(get_param "port" "5555")
+        case "$PORT" in
+            ''|*[!0-9]*) PORT=5555 ;;
+        esac
+        [ "$PORT" -lt 1024 ] && PORT=5555
+        [ "$PORT" -gt 65535 ] && PORT=5555
+        ADB_HELPER="/data/local/virtualap/bin/adb_helper.sh"
+        $ADB_HELPER start "$PORT"
+        echo "{\"success\": true, \"port\": $PORT, \"message\": \"ADB TCP port updated to $PORT\"}"
+        ;;
+
+    adb_toggle_auth)
+        ENABLE=$(get_param "enable" "1")
+        CONF_FILE="/data/local/virtualap/adb_debug.conf"
+        [ -f "$CONF_FILE" ] && . "$CONF_FILE" 2>/dev/null
+        if [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ]; then
+            CFG_ADB_AUTO_AUTH="1"
+            resetprop ro.adb.secure 0 2>/dev/null || true
+            resetprop ro.debuggable 1 2>/dev/null || true
+            echo "{\"success\": true, \"auto_auth\": true, \"message\": \"Permissive ADB (ro.adb.secure=0) enabled\"}"
+        else
+            CFG_ADB_AUTO_AUTH="0"
+            resetprop ro.adb.secure 1 2>/dev/null || true
+            echo "{\"success\": true, \"auto_auth\": false, \"message\": \"Permissive ADB disabled (standard auth)\"}"
+        fi
+        sed -i "s/^CFG_ADB_AUTO_AUTH=.*/CFG_ADB_AUTO_AUTH=\"$CFG_ADB_AUTO_AUTH\"/" "$CONF_FILE" 2>/dev/null || \
+            echo "CFG_ADB_AUTO_AUTH=\"$CFG_ADB_AUTO_AUTH\"" >> "$CONF_FILE"
+        ;;
+
+    adb_toggle_static_ips)
+        ENABLE=$(get_param "enable" "1")
+        CONF_FILE="/data/local/virtualap/adb_debug.conf"
+        [ -f "$CONF_FILE" ] && . "$CONF_FILE" 2>/dev/null
+        if [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ]; then
+            CFG_ADB_STATIC_IPS="1"
+            /data/local/virtualap/bin/adb_helper.sh maintain >/dev/null 2>&1 || true
+            echo "{\"success\": true, \"static_ips\": true, \"message\": \"Downstream static IP aliases enabled\"}"
+        else
+            CFG_ADB_STATIC_IPS="0"
+            echo "{\"success\": true, \"static_ips\": false, \"message\": \"Downstream static IP aliases disabled\"}"
+        fi
+        sed -i "s/^CFG_ADB_STATIC_IPS=.*/CFG_ADB_STATIC_IPS=\"$CFG_ADB_STATIC_IPS\"/" "$CONF_FILE" 2>/dev/null || \
+            echo "CFG_ADB_STATIC_IPS=\"$CFG_ADB_STATIC_IPS\"" >> "$CONF_FILE"
+        ;;
+
+    adb_restart)
+        ADB_HELPER="/data/local/virtualap/bin/adb_helper.sh"
+        $ADB_HELPER restart
+        ;;
+
+    adb_test)
+        ADB_HELPER="/data/local/virtualap/bin/adb_helper.sh"
+        $ADB_HELPER test
+        ;;
+
     *)
         echo "{\"error\": \"Unknown action: $ACTION\"}"
         ;;

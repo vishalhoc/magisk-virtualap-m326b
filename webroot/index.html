@@ -217,7 +217,7 @@
         <header>
             <div class="brand">
                 <h1>📡 VirtualAP & Connectivity Hub</h1>
-                <p>Samsung Galaxy M32 5G (SM-M326B / Dimensity 720)</p>
+                <p>Created by <b style="color:var(--accent-cyan);">hoc</b> | Samsung Galaxy M32 5G (SM-M326B / Dimensity 720)</p>
             </div>
             <div class="header-actions">
                 <button class="btn-refresh" id="btnHeaderSettings" onclick="openSettingsTab()" style="background:#1e293b; color:var(--accent-cyan); border-color:var(--accent-cyan);">⚙️ Settings & Bypass</button>
@@ -232,6 +232,7 @@
             <button class="nav-tab" onclick="switchNav('tab-usb', this)">🔌 USB Tethering</button>
             <button class="nav-tab" onclick="switchNav('tab-ethernet', this)">🌐 Ethernet</button>
             <button class="nav-tab" id="navTabInterfaces" onclick="switchNav('tab-interfaces', this)">🔀 Downstream & Upstream</button>
+            <button class="nav-tab" id="navTabAdb" onclick="switchNav('tab-adb', this)">⚡ Downstream ADB & Root</button>
             <button class="nav-tab" id="navTabSettings" onclick="switchNav('tab-settings', this)">⚙️ Settings & Bypass</button>
         </div>
 
@@ -927,6 +928,123 @@
                 </div>
             </div>
         </div>
+
+        <!-- ================================================================= -->
+        <!-- TAB 7: DOWNSTREAM NETWORK ADB & ROOT CONTROLLER -->
+        <!-- ================================================================= -->
+        <div id="tab-adb" class="tab-content">
+            <!-- Notice Banner -->
+            <div class="info-box" style="background:rgba(56, 189, 248, 0.08); border-color:rgba(56, 189, 248, 0.3);">
+                <h4>⚡ Downstream Network ADB & Root Shell Controller</h4>
+                Auto-enables ADB debugging across <b>all downstream and tethered networks</b> (Virtual AP <code>ap0</code>, USB Tethering, USB Ethernet, and Mobile Hotspot). Guarantees static IP & port persistence, unblocks firewall rules, and eliminates RSA pairing barriers so debugging works seamlessly with full Magisk root access just like USB debugging.
+            </div>
+
+            <!-- Master Control Card -->
+            <div class="card">
+                <div class="card-title">
+                    <span>⚡ Master Downstream ADB Configuration</span>
+                    <div id="adbStatusBadge" class="status-badge stopped">
+                        <span class="dot"></span>
+                        <span id="adbStatusText">ADB DISABLED</span>
+                    </div>
+                </div>
+
+                <div class="switch-row">
+                    <div class="switch-info">
+                        <div class="switch-title" style="color:var(--accent-cyan); font-weight:700;">Auto-Enable Downstream ADB Debugging</div>
+                        <div class="switch-desc">Listens on TCP across all downstream interfaces. Background watchdog auto-rebinds if disconnected or network changes.</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkAdbMaster" onchange="toggleAdbMaster(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="grid-2" style="margin-top:16px; margin-bottom:0;">
+                    <!-- Port Settings -->
+                    <div style="background:var(--bg-input); padding:12px; border-radius:8px; border:1px solid var(--border);">
+                        <label>Persistent TCP Port</label>
+                        <div style="display:flex; gap:8px; margin-top:6px;">
+                            <input type="number" id="txtAdbPort" value="5555" min="1024" max="65535" style="flex:1; font-family:ui-monospace, monospace;">
+                            <button class="btn-ctrl" onclick="applyAdbPort()" style="padding:8px 16px; font-size:0.8rem;">Apply Port</button>
+                        </div>
+                        <div class="input-hint">Default 5555. Daemon automatically restarts when changed.</div>
+                    </div>
+
+                    <!-- Auto-Auth / Permissive Mode -->
+                    <div style="background:var(--bg-input); padding:12px; border-radius:8px; border:1px solid var(--border);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <label style="margin-bottom:2px;">High-Level Permissive Auth</label>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">Eliminates RSA prompt hurdles (ro.adb.secure=0)</div>
+                            </div>
+                            <label class="toggle-switch" style="margin-left:10px;">
+                                <input type="checkbox" id="chkAdbAutoAuth" onchange="toggleAdbAutoAuth(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <label style="margin-bottom:2px;">Downstream Static IPs</label>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">Enforces fixed gateway IPs on tether interfaces</div>
+                            </div>
+                            <label class="toggle-switch" style="margin-left:10px;">
+                                <input type="checkbox" id="chkAdbStaticIps" onchange="toggleAdbStaticIps(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Diagnostics & Action Buttons -->
+                <div class="action-row" style="margin-top:16px; flex-wrap:wrap;">
+                    <button class="btn-ctrl" onclick="restartAdbDaemon()" style="background:#1e293b; color:var(--accent-cyan); border:1px solid var(--border);">🔄 Restart ADB Daemon</button>
+                    <button class="btn-ctrl" onclick="testAdbLoopback()" style="background:#1e293b; color:var(--accent-green); border:1px solid var(--border);">🔍 Test Local Loopback</button>
+                </div>
+            </div>
+
+            <!-- Downstream Endpoints Card -->
+            <div class="card">
+                <div class="card-title">
+                    <span>📡 Downstream Endpoints & 1-Click Connect Commands</span>
+                    <button class="btn-refresh" onclick="fetchAdbStatus(true)">🔄 Refresh Endpoints</button>
+                </div>
+                <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:14px;">
+                    Connect your computer or another device to any downstream network below, then click <b>Copy Command</b> and paste it into your terminal:
+                </p>
+
+                <div id="adbEndpointsContainer" class="grid-2">
+                    <!-- Populated dynamically via JavaScript -->
+                </div>
+            </div>
+
+            <!-- Terminal Root & ADB Cheatsheet Card -->
+            <div class="card">
+                <div class="card-title">💻 Terminal Cheatsheet & Higher-Level Root Usage</div>
+                <div style="font-size:0.83rem; line-height:1.6; color:#cbd5e1;">
+                    <p style="margin-bottom:10px;">
+                        Once connected via <code>adb connect &lt;IP&gt;:5555</code>, you have complete shell access. Because Magisk superuser policy is pre-granted, you can run elevated root commands immediately:
+                    </p>
+                    <div style="background:#050811; border:1px solid var(--border); border-radius:8px; padding:12px; font-family:ui-monospace, monospace; font-size:0.78rem; color:#86efac; overflow-x:auto; margin-bottom:12px;">
+                        <span style="color:#94a3b8;"># 1. Connect over Wi-Fi / Tethering</span><br>
+                        adb connect 192.168.42.1:5555<br><br>
+                        <span style="color:#94a3b8;"># 2. Open standard shell</span><br>
+                        adb -s 192.168.42.1:5555 shell<br><br>
+                        <span style="color:#94a3b8;"># 3. Elevate to root (Magisk pre-authorized)</span><br>
+                        su<br><br>
+                        <span style="color:#94a3b8;"># 4. Direct one-liner root command execution from PC</span><br>
+                        adb -s 192.168.42.1:5555 shell "su -c 'iptables -L -n -v'"<br><br>
+                        <span style="color:#94a3b8;"># 5. Push / Pull files directly with root</span><br>
+                        adb -s 192.168.42.1:5555 push myfile.txt /sdcard/<br>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer Branding -->
+        <footer style="margin-top:24px; padding:16px 0; border-top:1px solid var(--border); text-align:center; font-size:0.8rem; color:var(--text-muted);">
+            Created by <b style="color:var(--accent-cyan);">hoc</b> | VirtualAP & Connectivity Hub v3.0 | Samsung Galaxy M32 5G (MT6853)
+        </footer>
     </div>
 
     <!-- Scripts -->
@@ -1001,6 +1119,8 @@
             try { history.replaceState(null, null, '#' + tabId); } catch(e) {}
             if (tabId === 'tab-interfaces') {
                 fetchInterfacesData(false);
+            } else if (tabId === 'tab-adb') {
+                fetchAdbStatus(false);
             }
             refreshCurrentTab(false);
         }
@@ -1800,7 +1920,196 @@
                 fetchInterfacesData(manual);
             } else if (currentNavTab === 'tab-settings') {
                 fetchSettingsStatus();
+            } else if (currentNavTab === 'tab-adb') {
+                fetchAdbStatus(manual);
             }
+        }
+
+        // =====================================================================
+        // TAB 7: DOWNSTREAM NETWORK ADB & ROOT CONTROLLER JAVASCRIPT
+        // =====================================================================
+        let isAdbBusy = false;
+
+        async function fetchAdbStatus(manual) {
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=adb_status&_t=' + Date.now());
+                const data = await res.json();
+                if (!data.success && data.error) {
+                    console.warn('ADB Status error:', data.error);
+                    return;
+                }
+
+                // Update Badges
+                const badge = document.getElementById('adbStatusBadge');
+                const badgeText = document.getElementById('adbStatusText');
+                if (data.listening) {
+                    badge.className = 'status-badge active';
+                    badgeText.innerText = `ACTIVE (PORT ${data.port} | PID ${data.adbd_pid})`;
+                } else if (data.enabled) {
+                    badge.className = 'status-badge stopped';
+                    badgeText.innerText = `PORT ${data.port} (WAITING)`;
+                } else {
+                    badge.className = 'status-badge stopped';
+                    badgeText.innerText = 'ADB DISABLED';
+                }
+
+                // Update Form Controls
+                document.getElementById('chkAdbMaster').checked = !!data.enabled;
+                document.getElementById('txtAdbPort').value = data.port || 5555;
+                document.getElementById('chkAdbAutoAuth').checked = !data.secure;
+                document.getElementById('chkAdbStaticIps').checked = !!data.static_ips;
+
+                // Render Endpoints
+                renderAdbEndpoints(data.endpoints || [], data.port || 5555, data.listening);
+                if (manual) showToast('✅ Downstream ADB Status Refreshed');
+            } catch (e) {
+                console.error('fetchAdbStatus error:', e);
+            }
+        }
+
+        function renderAdbEndpoints(endpoints, port, isListening) {
+            const container = document.getElementById('adbEndpointsContainer');
+            if (!container) return;
+
+            if (!endpoints || endpoints.length === 0) {
+                container.innerHTML = '<div style="grid-column: 1 / -1; color:var(--text-muted); text-align:center; padding:16px;">No downstream interfaces found.</div>';
+                return;
+            }
+
+            let html = '';
+            endpoints.forEach(ep => {
+                const isUp = ep.state === 'UP';
+                const statusPill = isUp
+                    ? '<span class="iface-status-pill active"><span class="dot"></span> ACTIVE (UP)</span>'
+                    : '<span class="iface-status-pill down">IDLE / UNPLUGGED</span>';
+
+                const icon = ep.iface.includes('ap') ? '📡' :
+                             ep.iface.includes('rndis') || ep.iface.includes('usb') ? '🔌' :
+                             ep.iface.includes('eth') ? '🌐' : '📱';
+
+                html += `
+                <div class="card" style="border-color:${isUp ? 'var(--border-focus)' : 'var(--border)'}; margin-bottom:0; background:var(--bg-input);">
+                    <div class="card-title" style="margin-bottom:8px;">
+                        <span>${icon} ${ep.name}</span>
+                        ${statusPill}
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Interface</span>
+                        <span class="stat-val" style="color:var(--accent-cyan);">${ep.iface}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">Assigned Static IP</span>
+                        <span class="stat-val" style="color:#fff;">${ep.ip}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">ADB Endpoint</span>
+                        <span class="stat-val" style="color:var(--accent-green); font-size:0.9rem;">${ep.ip}:${port}</span>
+                    </div>
+                    <div style="margin-top:12px; display:flex; gap:8px;">
+                        <input type="text" readonly value="${ep.connect_cmd}" style="font-size:0.75rem; padding:6px 10px; font-family:ui-monospace, monospace; background:#050811; border-color:var(--border);" onclick="this.select()">
+                        <button class="btn-ctrl" onclick="copyCommand('${ep.connect_cmd}')" style="padding:6px 12px; font-size:0.75rem; white-space:nowrap; background:#1e293b; color:var(--accent-cyan); border:1px solid var(--border-focus);">
+                            📋 Copy
+                        </button>
+                    </div>
+                </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        async function toggleAdbMaster(enable) {
+            const port = document.getElementById('txtAdbPort').value || 5555;
+            showToast(enable ? '⚡ Enabling Downstream ADB...' : 'Stopping Downstream ADB...');
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=adb_toggle&enable=${enable ? 1 : 0}&port=${port}&_t=${Date.now()}`);
+                const data = await res.json();
+                if (data.message) showToast('✅ ' + data.message);
+                fetchAdbStatus(false);
+            } catch (e) {
+                console.error('toggleAdbMaster error:', e);
+            }
+        }
+
+        async function applyAdbPort() {
+            const port = document.getElementById('txtAdbPort').value || 5555;
+            showToast(`Applying port ${port}...`);
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=adb_set_port&port=${port}&_t=${Date.now()}`);
+                const data = await res.json();
+                if (data.message) showToast('✅ ' + data.message);
+                fetchAdbStatus(false);
+            } catch (e) {
+                console.error('applyAdbPort error:', e);
+            }
+        }
+
+        async function toggleAdbAutoAuth(enable) {
+            showToast(enable ? 'Enabling permissive ADB auth...' : 'Reverting standard ADB auth...');
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=adb_toggle_auth&enable=${enable ? 1 : 0}&_t=${Date.now()}`);
+                const data = await res.json();
+                if (data.message) showToast('✅ ' + data.message);
+                fetchAdbStatus(false);
+            } catch (e) {
+                console.error('toggleAdbAutoAuth error:', e);
+            }
+        }
+
+        async function toggleAdbStaticIps(enable) {
+            showToast(enable ? 'Enforcing downstream static IPs...' : 'Disabling static IP enforcement...');
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=adb_toggle_static_ips&enable=${enable ? 1 : 0}&_t=${Date.now()}`);
+                const data = await res.json();
+                if (data.message) showToast('✅ ' + data.message);
+                fetchAdbStatus(false);
+            } catch (e) {
+                console.error('toggleAdbStaticIps error:', e);
+            }
+        }
+
+        async function restartAdbDaemon() {
+            showToast('🔄 Restarting adbd daemon...');
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=adb_restart&_t=${Date.now()}`);
+                const data = await res.json();
+                if (data.message) showToast('✅ ' + data.message);
+                setTimeout(() => fetchAdbStatus(false), 1200);
+            } catch (e) {
+                console.error('restartAdbDaemon error:', e);
+            }
+        }
+
+        async function testAdbLoopback() {
+            showToast('🔍 Testing local TCP connection...');
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=adb_test&_t=${Date.now()}`);
+                const data = await res.json();
+                if (data.reachable) {
+                    showToast(`✅ SUCCESS: Port ${data.port} is reachable!`);
+                } else {
+                    showToast(`❌ Port ${data.port} is unreachable or refused.`);
+                }
+            } catch (e) {
+                console.error('testAdbLoopback error:', e);
+            }
+        }
+
+        function copyCommand(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => showToast('📋 Copied: ' + text)).catch(() => fallbackCopy(text));
+            } else {
+                fallbackCopy(text);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('📋 Copied: ' + text);
         }
 
         // Initial setup

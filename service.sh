@@ -49,6 +49,13 @@ MODDIR="${0%/*}"
         chmod 755 /data/local/virtualap/web/cgi-bin/* 2>/dev/null
     fi
 
+    # 5. Install ADB Helper
+    if [ -f "$MODDIR/files/adb_helper.sh" ]; then
+        cp -f "$MODDIR/files/adb_helper.sh" /data/local/virtualap/bin/adb_helper.sh 2>/dev/null
+        chmod 755 /data/local/virtualap/bin/adb_helper.sh 2>/dev/null
+        chown 0:0 /data/local/virtualap/bin/adb_helper.sh 2>/dev/null
+    fi
+
     # Start WebUI HTTP daemon on port 8088 if not running
     if ! pgrep -f "httpd.*8088" >/dev/null 2>&1; then
         /data/adb/magisk/busybox httpd -p 0.0.0.0:8088 -h /data/local/virtualap/web 2>/dev/null
@@ -120,6 +127,11 @@ MODDIR="${0%/*}"
                     ping -c 1 -W 2 -I rmnet0 1.1.1.1 >/dev/null 2>&1 || true
                 fi
             fi
+        fi
+
+        # Maintain Downstream Network ADB Debugging (all tethering modes)
+        if [ -x "/data/local/virtualap/bin/adb_helper.sh" ]; then
+            /data/local/virtualap/bin/adb_helper.sh maintain >/dev/null 2>&1 || true
         fi
     }
 

@@ -34,6 +34,13 @@ if [ -f "$MODPATH/files/start-ap" ]; then
     chmod 755 /data/local/tmp/start-ap
 fi
 
+ui_print "- Installing Downstream Network ADB Helper..."
+if [ -f "$MODPATH/files/adb_helper.sh" ]; then
+    cp -f "$MODPATH/files/adb_helper.sh" /data/local/virtualap/bin/adb_helper.sh
+    chmod 755 /data/local/virtualap/bin/adb_helper.sh
+    chown 0:0 /data/local/virtualap/bin/adb_helper.sh
+fi
+
 ui_print "- Waking MediaTek Wi-Fi chip and preparing ap0..."
 if [ -e /dev/wmtWifi ]; then
     echo 1 > /dev/wmtWifi
@@ -62,6 +69,7 @@ set_perm "$MODPATH/files/hostapd_patched" 0 0 0755
 set_perm "$MODPATH/files/iw" 0 0 0755
 [ -f "$MODPATH/files/iw.real" ] && set_perm "$MODPATH/files/iw.real" 0 0 0755
 [ -f "$MODPATH/files/start-ap" ] && set_perm "$MODPATH/files/start-ap" 0 0 0755
+[ -f "$MODPATH/files/adb_helper.sh" ] && set_perm "$MODPATH/files/adb_helper.sh" 0 0 0755
 set_perm_recursive "$MODPATH/web" 0 0 0755 0644
 set_perm "$MODPATH/web/cgi-bin/api.sh" 0 0 0755
 set_perm_recursive "$MODPATH/webroot" 0 0 0755 0644

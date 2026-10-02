@@ -1,15 +1,31 @@
 # VirtualAP Fix & Web Control Panel (Samsung Galaxy M32 5G / Dimensity 720)
+**Created by hoc**
 
 [![Magisk](https://img.shields.io/badge/Magisk-v24.0+-brightgreen.svg)](https://github.com/topjohnwu/Magisk)
 [![SoC](https://img.shields.io/badge/MediaTek-MT6853%20Dimensity%20720-blue.svg)](https://www.mediatek.com)
-[![Version](https://img.shields.io/badge/Version-v2.9-orange.svg)](#version-29-features)
+[![Version](https://img.shields.io/badge/Version-v3.0-orange.svg)](#version-30-features)
 [![WebUI](https://img.shields.io/badge/Control%20Panel-Web%20CGI%20Portal-red.svg)](#web-control-panel)
 
-A complete systemless Magisk module providing concurrent **Virtual AP (`ap0`)**, **Carrier Hotspot Detection Bypass**, **Dedicated Router Mode**, and multi-interface connectivity management with an integrated Web Control Panel for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
+A complete systemless Magisk module created by **hoc** providing concurrent **Virtual AP (`ap0`)**, **Downstream Network ADB & Root Controller**, **Carrier Hotspot Detection Bypass**, **Dedicated Router Mode**, and multi-interface connectivity management with an integrated Web Control Panel for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
 
 ---
 
-## 🌟 What's New in v2.9
+## 🌟 What's New in v3.0
+
+### ⚡ Downstream Network ADB & Root Shell Controller Across All Tethering Modes
+- **Auto-Enable Downstream ADB:** Seamlessly activates TCP/IP ADB across **all downstream networks** — Virtual AP (`ap0`), USB Tethering (`rndis0` / `usb0`), USB Ethernet (`eth0`), and Mobile Hotspot (`wlan0` / `swlan0`).
+- **Higher-Level Debugging Just Like USB:**
+  - Configures permissive authentication (`ro.adb.secure=0`) and developer flags (`ro.debuggable=1`), bypassing RSA pairing prompts on downstream network interfaces.
+  - Seamless elevated root shell access (`adb shell su`) with Magisk superuser integration.
+- **Static IP & Port Persistence:**
+  - Configurable persistent TCP port (default `5555`).
+  - Auto-assigns predictable static IP endpoints on tether interfaces (`ap0`: `192.168.42.1:5555`, USB: `192.168.44.1:5555`, Ethernet: `192.168.45.1:5555`, Hotspot: `192.168.43.1:5555`).
+  - Web UI displays dynamic live endpoint cards with **1-Click Copy** buttons for instant terminal connection (`adb connect <IP>:<PORT>`).
+- **Firewall & Watchdog Protection:**
+  - Injects iptables ACCEPT rules on `INPUT` and `tetherctrl_INPUT` for IPv4 & IPv6.
+  - Persistent daemon watchdog automatically restores the TCP listener and firewall rules if Android drops the session or network state changes.
+
+---
 
 ### 📶 Mobile Data Persistence Fix in Dedicated Router Mode
 - **Network Validation Probes (UID 0-9999):** Resolved the issue where mobile data automatically disconnected after 5–10 minutes when Dedicated Router Mode was enabled. The firewall now explicitly permits Android OS System & NetworkStack (`uid 1073` / `connectivitycheck.gstatic.com` HTTP 204 validation checks) and RIL modem keepalives.
@@ -89,24 +105,25 @@ Prevents mobile network operators from detecting that tethering/hotspot is activ
 │   ├── iw                  # Wrapper script with MTK driver wake, ap0 linking & native bypass
 │   ├── iw.real             # Static real iw binary
 │   ├── start-ap            # Core AP lifecycle management daemon
+│   ├── adb_helper.sh       # Downstream Network ADB & Root Engine with watchdog
 │   ├── test_5g.conf        # 5GHz 20/40MHz hostapd configuration
 │   ├── test_5g_80m.conf    # 5GHz 80MHz VHT configuration
 │   └── test_ap0.conf       # 2.4GHz standard configuration
 ├── web/
-│   ├── index.html          # 5-Tab Cyber Dark Web Dashboard with Settings Portal
-│   └── cgi-bin/api.sh      # Shell-based CGI API handler with settings endpoints
+│   ├── index.html          # Cyber Dark Web Dashboard with ADB & Connectivity Portal
+│   └── cgi-bin/api.sh      # Shell-based CGI API handler with ADB & settings endpoints
 ├── webroot/                # Mirrored web assets
-├── service.sh              # Boot daemon & persistent background service
+├── service.sh              # Boot daemon & persistent background service with ADB watchdog
 ├── customize.sh            # Magisk installer script
 ├── action.sh               # Magisk Action button handler
-└── module.prop             # Module metadata (v2.8)
+└── module.prop             # Module metadata (v3.0)
 ```
 
 ---
 
 ## 📦 Installation
 
-1. Download **`virtualap_m326b_fix_v2.8.zip`** from [Releases](https://github.com/vishalhoc/magisk-virtualap-m326b/releases).
+1. Download **`virtualap_m326b_fix_v3.0.zip`** from [Releases](https://github.com/vishalhoc/magisk-virtualap-m326b/releases).
 2. Flash via **Magisk Manager** or **KernelSU**.
 3. Reboot your device.
 4. Tap the **Action** button on the module in Magisk or open `http://localhost:8088` in your browser.
