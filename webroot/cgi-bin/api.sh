@@ -615,11 +615,49 @@ EOF
     # TAB 2: NATIVE & KERNEL HOTSPOT ENDPOINTS
     # =========================================================================
     hotspot_status)
-        # Check active status
+        # Multi-Vector Advanced Hotspot Detection
+        VEC_IFACE="swlan0: DOWN"
+        VEC_IFACE_ACTIVE="false"
+        for _if in swlan0 wlan1 ap0 wlan0; do
+            if [ -d "/sys/class/net/$_if" ]; then
+                _st=$(cat "/sys/class/net/$_if/operstate" 2>/dev/null || echo "unknown")
+                if ip link show "$_if" 2>/dev/null | grep -qE "state UP|<UP"; then
+                    VEC_IFACE="$_if (UP)"
+                    VEC_IFACE_ACTIVE="true"
+                    break
+                else
+                    VEC_IFACE="$_if ($_st)"
+                fi
+            fi
+        done
+
+        VEC_WIFI_ROLE="Disabled"
+        VEC_WIFI_ACTIVE="false"
+        DUMP_WIFI=$(dumpsys wifi 2>/dev/null)
+        if echo "$DUMP_WIFI" | grep -qE "ROLE_SOFTAP_TETHERED|curState=TetheredState"; then
+            VEC_WIFI_ROLE="ROLE_SOFTAP_TETHERED"
+            VEC_WIFI_ACTIVE="true"
+        elif echo "$DUMP_WIFI" | grep -q "SoftApState{state=13"; then
+            VEC_WIFI_ROLE="WIFI_AP_STATE_ENABLED (13)"
+            VEC_WIFI_ACTIVE="true"
+        fi
+
+        VEC_TETHER_ACTIVE="false"
+        VEC_TETHER_IFACE="None"
+        DUMP_TETHER=$(dumpsys tethering 2>/dev/null)
+        TETHER_LIST=$(echo "$DUMP_TETHER" | grep -A 5 "Tethered:" | grep -E "swlan0|wlan1|ap0|wlan0" | awk '{print $1}' | head -n1)
+        if [ -n "$TETHER_LIST" ]; then
+            VEC_TETHER_ACTIVE="true"
+            VEC_TETHER_IFACE="$TETHER_LIST"
+        fi
+
+        VEC_HOSTAPD_ACTIVE="false"
+        VEC_HOSTAPD_PID=$(pgrep -f "hostapd" | head -n1)
+        [ -n "$VEC_HOSTAPD_PID" ] && VEC_HOSTAPD_ACTIVE="true"
+
+        # Comprehensive Multi-Vector Evaluation
         HS_ACTIVE="false"
-        if ip link show swlan0 2>/dev/null | grep -q "UP"; then
-            HS_ACTIVE="true"
-        elif dumpsys wifi 2>/dev/null | grep -q "mRole: ROLE_SOFTAP_TETHERED"; then
+        if [ "$VEC_IFACE_ACTIVE" = "true" ] || [ "$VEC_WIFI_ACTIVE" = "true" ] || [ "$VEC_TETHER_ACTIVE" = "true" ] || [ "$VEC_HOSTAPD_ACTIVE" = "true" ]; then
             HS_ACTIVE="true"
         fi
 
@@ -674,13 +712,16 @@ EOF
         BPF_OFFLOAD_BOOL="true"
         [ "$OFFLOAD_DIS" = "1" ] && BPF_OFFLOAD_BOOL="false"
 
-        # Hotspot client devices
+        # Hotspot client devices (multi-interface ARP & Neigh)
         HS_CLIENTS=""
         while read -r ip hw_type flags mac mask dev; do
-            [ "$dev" != "swlan0" ] && continue
+            case "$dev" in
+                swlan0|ap0|wlan1) ;;
+                *) continue ;;
+            esac
             [ "$flags" != "0x2" ] && continue
             [ -n "$HS_CLIENTS" ] && HS_CLIENTS="$HS_CLIENTS,"
-            HS_CLIENTS="$HS_CLIENTS{\"ip\":\"$ip\",\"mac\":\"$mac\"}"
+            HS_CLIENTS="$HS_CLIENTS{\"ip\":\"$ip\",\"mac\":\"$mac\",\"iface\":\"$dev\"}"
         done < /proc/net/arp
 
         cat <<EOF
@@ -697,6 +738,12 @@ EOF
     "dun_bypass": $DUN_BYPASS,
     "ip_forward": $IP_FWD_BOOL,
     "bpf_offload": $BPF_OFFLOAD_BOOL,
+    "detection_vectors": {
+        "kernel_iface": {"active": $VEC_IFACE_ACTIVE, "desc": "$VEC_IFACE"},
+        "wifi_framework": {"active": $VEC_WIFI_ACTIVE, "desc": "$VEC_WIFI_ROLE"},
+        "tethering_service": {"active": $VEC_TETHER_ACTIVE, "desc": "$VEC_TETHER_IFACE"},
+        "hostapd_daemon": {"active": $VEC_HOSTAPD_ACTIVE, "desc": "$([ -n "$VEC_HOSTAPD_PID" ] && echo "PID $VEC_HOSTAPD_PID" || echo "Stopped")"}
+    },
     "clients": [$HS_CLIENTS]
 }
 EOF
@@ -986,28 +1033,65 @@ EOF
     # =========================================================================
     # TAB 5: CARRIER BYPASS & SYSTEM SETTINGS ENDPOINTS
     # =========================================================================
+    # =========================================================================
+    # TAB 5: MODULAR CARRIER BYPASS & SYSTEM SETTINGS ENDPOINTS
+    # =========================================================================
     settings_status)
         SETTINGS_CONF="/data/local/virtualap/settings.conf"
         [ -f "$SETTINGS_CONF" ] && . "$SETTINGS_CONF"
 
         [ -z "$CFG_CARRIER_BYPASS" ] && CFG_CARRIER_BYPASS="0"
         [ -z "$CFG_TARGET_TTL" ] && CFG_TARGET_TTL="64"
+        [ -z "$CFG_TTL_BYPASS" ] && CFG_TTL_BYPASS="1"
         [ -z "$CFG_DUN_BYPASS" ] && CFG_DUN_BYPASS="1"
         [ -z "$CFG_MSS_CLAMP" ] && CFG_MSS_CLAMP="1"
         [ -z "$CFG_DNS_PROTECT" ] && CFG_DNS_PROTECT="1"
         [ -z "$CFG_IPV6_PROTECT" ] && CFG_IPV6_PROTECT="1"
+        [ -z "$CFG_BPF_OFFLOAD_DISABLED" ] && CFG_BPF_OFFLOAD_DISABLED="1"
+        [ -z "$CFG_PROVISIONING_SHIELD" ] && CFG_PROVISIONING_SHIELD="1"
         [ -z "$CFG_DEDICATED_ROUTER" ] && CFG_DEDICATED_ROUTER="0"
         [ -z "$CFG_NATIVE_MODE" ] && CFG_NATIVE_MODE="0"
 
-        # Check real-time iptables status
+        # Check real-time iptables and system status
         ROUTER_ACTIVE="false"
         if /system/bin/iptables -w 2 -L OUTPUT -n 2>/dev/null | grep -q "DEDICATED_ROUTER_OUT"; then
             ROUTER_ACTIVE="true"
         fi
 
-        BYPASS_ACTIVE="false"
+        # Check real-time status of each vector
         DUN_REQ=$(settings get global tether_dun_required 2>/dev/null || echo "1")
-        if [ "$DUN_REQ" = "0" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+        LIVE_DUN_BYPASS="false"
+        [ "$DUN_REQ" = "0" ] && LIVE_DUN_BYPASS="true"
+
+        LIVE_MSS_CLAMP="false"
+        if /system/bin/iptables -w 2 -t mangle -L FORWARD -n 2>/dev/null | grep -q "TCPMSS clamp to PMTU"; then
+            LIVE_MSS_CLAMP="true"
+        fi
+
+        LIVE_DNS_PROTECT="false"
+        if /system/bin/iptables -w 2 -t nat -L PREROUTING -n 2>/dev/null | grep -q "to:1.1.1.1:53"; then
+            LIVE_DNS_PROTECT="true"
+        fi
+
+        LIVE_IPV6_PROTECT="false"
+        if /system/bin/ip6tables -w 2 -L FORWARD -n 2>/dev/null | grep -q "DROP"; then
+            LIVE_IPV6_PROTECT="true"
+        fi
+
+        CUR_SYS_TTL=$(cat /proc/sys/net/ipv4/ip_default_ttl 2>/dev/null || echo "64")
+        LIVE_TTL_BYPASS="false"
+        [ "$CFG_TTL_BYPASS" = "1" ] && LIVE_TTL_BYPASS="true"
+
+        OFFLOAD_DIS=$(settings get global tether_offload_disabled 2>/dev/null || echo "0")
+        LIVE_BPF_OFFLOAD_DIS="false"
+        [ "$OFFLOAD_DIS" = "1" ] && LIVE_BPF_OFFLOAD_DIS="true"
+
+        NOPROV_PROP=$(getprop net.tethering.noprovisioning 2>/dev/null || echo "false")
+        LIVE_PROV_SHIELD="false"
+        [ "$NOPROV_PROP" = "true" ] && LIVE_PROV_SHIELD="true"
+
+        BYPASS_ACTIVE="false"
+        if [ "$LIVE_DUN_BYPASS" = "true" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
             BYPASS_ACTIVE="true"
         fi
 
@@ -1018,14 +1102,145 @@ EOF
 {
     "carrier_bypass": $BYPASS_ACTIVE,
     "target_ttl": $CFG_TARGET_TTL,
-    "dun_bypass": $([ "$DUN_REQ" = "0" ] && echo "true" || echo "false"),
-    "mss_clamp": $([ "$CFG_MSS_CLAMP" = "1" ] && echo "true" || echo "false"),
-    "dns_protect": $([ "$CFG_DNS_PROTECT" = "1" ] && echo "true" || echo "false"),
-    "ipv6_protect": $([ "$CFG_IPV6_PROTECT" = "1" ] && echo "true" || echo "false"),
+    "current_sys_ttl": $CUR_SYS_TTL,
+    "ttl_bypass": $LIVE_TTL_BYPASS,
+    "dun_bypass": $LIVE_DUN_BYPASS,
+    "mss_clamp": $LIVE_MSS_CLAMP,
+    "dns_protect": $LIVE_DNS_PROTECT,
+    "ipv6_protect": $LIVE_IPV6_PROTECT,
+    "bpf_offload_disabled": $LIVE_BPF_OFFLOAD_DIS,
+    "provisioning_shield": $LIVE_PROV_SHIELD,
     "dedicated_router": $ROUTER_ACTIVE,
     "native_mode": $NATIVE_FLAG_ACTIVE
 }
 EOF
+        ;;
+
+    settings_toggle_method)
+        METHOD=$(get_param "method" "")
+        ENABLE=$(get_param "enable" "1")
+        TTL_VAL=$(get_param "ttl" "64")
+        [ -z "$TTL_VAL" ] && TTL_VAL="64"
+        SETTINGS_CONF="/data/local/virtualap/settings.conf"
+        [ -f "$SETTINGS_CONF" ] && . "$SETTINGS_CONF"
+
+        [ -z "$CFG_CARRIER_BYPASS" ] && CFG_CARRIER_BYPASS="1"
+        [ -z "$CFG_TARGET_TTL" ] && CFG_TARGET_TTL="64"
+        [ -z "$CFG_TTL_BYPASS" ] && CFG_TTL_BYPASS="1"
+        [ -z "$CFG_DUN_BYPASS" ] && CFG_DUN_BYPASS="1"
+        [ -z "$CFG_MSS_CLAMP" ] && CFG_MSS_CLAMP="1"
+        [ -z "$CFG_DNS_PROTECT" ] && CFG_DNS_PROTECT="1"
+        [ -z "$CFG_IPV6_PROTECT" ] && CFG_IPV6_PROTECT="1"
+        [ -z "$CFG_BPF_OFFLOAD_DISABLED" ] && CFG_BPF_OFFLOAD_DISABLED="1"
+        [ -z "$CFG_PROVISIONING_SHIELD" ] && CFG_PROVISIONING_SHIELD="1"
+
+        IS_ON="0"
+        [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ] && IS_ON="1"
+        MSG=""
+
+        case "$METHOD" in
+            ttl)
+                CFG_TTL_BYPASS="$IS_ON"
+                CFG_TARGET_TTL="$TTL_VAL"
+                if [ "$IS_ON" = "1" ]; then
+                    sysctl -w net.ipv4.ip_default_ttl="$TTL_VAL" 2>/dev/null || true
+                    sysctl -w net.ipv6.conf.all.hop_limit="$TTL_VAL" 2>/dev/null || true
+                    sysctl -w net.ipv6.conf.default.hop_limit="$TTL_VAL" 2>/dev/null || true
+                    /system/bin/iptables -w 5 -t mangle -D POSTROUTING -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
+                    /system/bin/iptables -w 5 -t mangle -I POSTROUTING 1 -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
+                    MSG="TTL / Hop Limit Cloak ENABLED (TTL $TTL_VAL)"
+                else
+                    sysctl -w net.ipv4.ip_default_ttl=64 2>/dev/null || true
+                    /system/bin/iptables -w 5 -t mangle -D POSTROUTING -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
+                    MSG="TTL / Hop Limit Cloak disabled"
+                fi
+                ;;
+            dun)
+                CFG_DUN_BYPASS="$IS_ON"
+                if [ "$IS_ON" = "1" ]; then
+                    settings put global tether_dun_required 0 2>/dev/null
+                    settings put global tether_dun_apn "" 2>/dev/null
+                    settings put global tether_entitlement_check_state 0 2>/dev/null
+                    MSG="Carrier DUN APN & Entitlement Bypass ENABLED"
+                else
+                    settings put global tether_dun_required 1 2>/dev/null
+                    settings put global tether_entitlement_check_state 1 2>/dev/null
+                    MSG="Carrier DUN APN & Entitlement Bypass disabled"
+                fi
+                ;;
+            mss)
+                CFG_MSS_CLAMP="$IS_ON"
+                /system/bin/iptables -w 5 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+                if [ "$IS_ON" = "1" ]; then
+                    /system/bin/iptables -w 5 -t mangle -I FORWARD 1 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+                    MSG="TCP MSS Clamping (PMTU) ENABLED"
+                else
+                    MSG="TCP MSS Clamping disabled"
+                fi
+                ;;
+            dns)
+                CFG_DNS_PROTECT="$IS_ON"
+                /system/bin/iptables -w 5 -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+                /system/bin/iptables -w 5 -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+                if [ "$IS_ON" = "1" ]; then
+                    /system/bin/iptables -w 5 -t nat -I PREROUTING 1 -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+                    /system/bin/iptables -w 5 -t nat -I PREROUTING 1 -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+                    MSG="DNS Leak & DPI Cloaking (1.1.1.1) ENABLED"
+                else
+                    MSG="DNS Leak & DPI Cloaking disabled"
+                fi
+                ;;
+            ipv6)
+                CFG_IPV6_PROTECT="$IS_ON"
+                /system/bin/ip6tables -w 5 -D FORWARD -j DROP 2>/dev/null || true
+                if [ "$IS_ON" = "1" ]; then
+                    /system/bin/ip6tables -w 5 -I FORWARD 1 -j DROP 2>/dev/null || true
+                    MSG="IPv6 EUI-64 & Leak Shield ENABLED"
+                else
+                    MSG="IPv6 EUI-64 & Leak Shield disabled"
+                fi
+                ;;
+            bpf)
+                CFG_BPF_OFFLOAD_DISABLED="$IS_ON"
+                if [ "$IS_ON" = "1" ]; then
+                    settings put global tether_offload_disabled 1 2>/dev/null
+                    MSG="BPF Hardware Tether Offload Disabled (Forced Netfilter Inspection ENABLED)"
+                else
+                    settings put global tether_offload_disabled 0 2>/dev/null
+                    MSG="BPF Hardware Tether Offload enabled (Stock)"
+                fi
+                ;;
+            provisioning)
+                CFG_PROVISIONING_SHIELD="$IS_ON"
+                if [ "$IS_ON" = "1" ]; then
+                    setprop net.tethering.noprovisioning true 2>/dev/null
+                    setprop persist.sys.tether.noprovisioning true 2>/dev/null
+                    MSG="Platform Tether Provisioning Shield ENABLED"
+                else
+                    setprop net.tethering.noprovisioning false 2>/dev/null
+                    setprop persist.sys.tether.noprovisioning false 2>/dev/null
+                    MSG="Platform Tether Provisioning Shield disabled"
+                fi
+                ;;
+            *)
+                echo "{\"success\": false, \"error\": \"Unknown method: $METHOD\"}"
+                exit 0
+                ;;
+        esac
+
+        # Save state to SETTINGS_CONF
+        cat <<EOF > "$SETTINGS_CONF"
+CFG_CARRIER_BYPASS="$CFG_CARRIER_BYPASS"
+CFG_TARGET_TTL="$CFG_TARGET_TTL"
+CFG_TTL_BYPASS="$CFG_TTL_BYPASS"
+CFG_DUN_BYPASS="$CFG_DUN_BYPASS"
+CFG_MSS_CLAMP="$CFG_MSS_CLAMP"
+CFG_DNS_PROTECT="$CFG_DNS_PROTECT"
+CFG_IPV6_PROTECT="$CFG_IPV6_PROTECT"
+CFG_BPF_OFFLOAD_DISABLED="$CFG_BPF_OFFLOAD_DISABLED"
+CFG_PROVISIONING_SHIELD="$CFG_PROVISIONING_SHIELD"
+EOF
+        echo "{\"success\": true, \"method\": \"$METHOD\", \"enabled\": $([ "$IS_ON" = "1" ] && echo "true" || echo "false"), \"message\": \"$MSG\"}"
         ;;
 
     settings_toggle_bypass)
@@ -1046,6 +1261,8 @@ EOF
             sysctl -w net.ipv4.ip_default_ttl="$TTL_VAL" 2>/dev/null || true
             sysctl -w net.ipv6.conf.all.hop_limit="$TTL_VAL" 2>/dev/null || true
             sysctl -w net.ipv6.conf.default.hop_limit="$TTL_VAL" 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -D POSTROUTING -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -I POSTROUTING 1 -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
 
             # 3. TCP MSS Clamping to PMTU across all forwarded interfaces
             /system/bin/iptables -w 5 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
@@ -1061,14 +1278,20 @@ EOF
             /system/bin/ip6tables -w 5 -D FORWARD -j DROP 2>/dev/null || true
             /system/bin/ip6tables -w 5 -I FORWARD 1 -j DROP 2>/dev/null || true
 
+            # 6. Disable BPF hardware offload
+            settings put global tether_offload_disabled 1 2>/dev/null
+
             # Save state
             cat <<EOF > "$SETTINGS_CONF"
 CFG_CARRIER_BYPASS="1"
 CFG_TARGET_TTL="$TTL_VAL"
+CFG_TTL_BYPASS="1"
 CFG_DUN_BYPASS="1"
 CFG_MSS_CLAMP="1"
 CFG_DNS_PROTECT="1"
 CFG_IPV6_PROTECT="1"
+CFG_BPF_OFFLOAD_DISABLED="1"
+CFG_PROVISIONING_SHIELD="1"
 EOF
             echo "{\"success\": true, \"carrier_bypass\": true, \"message\": \"Carrier Hotspot Bypass ACTIVE for all tethering modes\"}"
         else
@@ -1077,7 +1300,10 @@ EOF
             settings put global tether_entitlement_check_state 1 2>/dev/null
             setprop net.tethering.noprovisioning false 2>/dev/null
             setprop persist.sys.tether.noprovisioning false 2>/dev/null
+            settings put global tether_offload_disabled 0 2>/dev/null
 
+            sysctl -w net.ipv4.ip_default_ttl=64 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -D POSTROUTING -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
             /system/bin/iptables -w 5 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
             /system/bin/iptables -w 5 -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
             /system/bin/iptables -w 5 -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
@@ -1086,15 +1312,17 @@ EOF
             cat <<EOF > "$SETTINGS_CONF"
 CFG_CARRIER_BYPASS="0"
 CFG_TARGET_TTL="64"
+CFG_TTL_BYPASS="0"
 CFG_DUN_BYPASS="0"
 CFG_MSS_CLAMP="0"
 CFG_DNS_PROTECT="0"
 CFG_IPV6_PROTECT="0"
+CFG_BPF_OFFLOAD_DISABLED="0"
+CFG_PROVISIONING_SHIELD="0"
 EOF
             echo "{\"success\": true, \"carrier_bypass\": false, \"message\": \"Carrier Hotspot Bypass disabled\"}"
         fi
         ;;
-
     settings_toggle_dedicated_router)
         ENABLE=$(get_param "enable" "1")
         FLAG="/data/local/virtualap/dedicated_router.flag"
@@ -1299,6 +1527,101 @@ EOF
     adb_test)
         ADB_HELPER="/data/local/virtualap/bin/adb_helper.sh"
         $ADB_HELPER test
+        ;;
+
+    module_check_update)
+        CURRENT_VER="v3.1"
+        [ -f "/data/adb/modules/virtualap_m326b_fix/module.prop" ] && \
+            CURRENT_VER=$(grep "^version=" /data/adb/modules/virtualap_m326b_fix/module.prop | cut -d= -f2 | tr -d '\r\n')
+        
+        # Query GitHub API via wget/curl
+        GH_JSON=""
+        if [ -x "/data/adb/magisk/busybox" ]; then
+            GH_JSON=$(/data/adb/magisk/busybox wget -q --no-check-certificate -O - "https://api.github.com/repos/vishalhoc/magisk-virtualap-m326b/releases/latest" 2>/dev/null)
+        elif which curl >/dev/null 2>&1; then
+            GH_JSON=$(curl -s -k --connect-timeout 5 -m 10 "https://api.github.com/repos/vishalhoc/magisk-virtualap-m326b/releases/latest" 2>/dev/null)
+        fi
+        
+        if [ -n "$GH_JSON" ] && echo "$GH_JSON" | grep -q '"tag_name"'; then
+            REMOTE_TAG=$(echo "$GH_JSON" | grep -o '"tag_name": *"[^"]*"' | head -n1 | sed -e 's/"tag_name": *"//' -e 's/"//')
+            REMOTE_NAME=$(echo "$GH_JSON" | grep -o '"name": *"[^"]*"' | head -n1 | sed -e 's/"name": *"//' -e 's/"//')
+            ZIP_URL=$(echo "$GH_JSON" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -n1 | sed -e 's/"browser_download_url": *"//' -e 's/"//')
+            PUB_DATE=$(echo "$GH_JSON" | grep -o '"published_at": *"[^"]*"' | head -n1 | sed -e 's/"published_at": *"//' -e 's/"//')
+            
+            HAS_UPDATE="false"
+            if [ -n "$REMOTE_TAG" ] && [ "$REMOTE_TAG" != "$CURRENT_VER" ]; then
+                HAS_UPDATE="true"
+            fi
+            
+            cat <<EOF
+{
+    "success": true,
+    "current_version": "$CURRENT_VER",
+    "latest_version": "$REMOTE_TAG",
+    "has_update": $HAS_UPDATE,
+    "release_title": "$REMOTE_NAME",
+    "published_at": "$PUB_DATE",
+    "download_url": "$ZIP_URL"
+}
+EOF
+        else
+            cat <<EOF
+{
+    "success": false,
+    "current_version": "$CURRENT_VER",
+    "error": "Could not fetch GitHub releases. Please verify internet access."
+}
+EOF
+        fi
+        ;;
+
+    module_install_update)
+        URL=$(get_param "url" "")
+        TARGET_ZIP="/data/local/tmp/virtualap_update.zip"
+        
+        if [ -z "$URL" ]; then
+            GH_JSON=""
+            if [ -x "/data/adb/magisk/busybox" ]; then
+                GH_JSON=$(/data/adb/magisk/busybox wget -q --no-check-certificate -O - "https://api.github.com/repos/vishalhoc/magisk-virtualap-m326b/releases/latest" 2>/dev/null)
+            elif which curl >/dev/null 2>&1; then
+                GH_JSON=$(curl -s -k --connect-timeout 5 -m 10 "https://api.github.com/repos/vishalhoc/magisk-virtualap-m326b/releases/latest" 2>/dev/null)
+            fi
+            URL=$(echo "$GH_JSON" | grep -o '"browser_download_url": *"[^"]*\.zip"' | head -n1 | sed -e 's/"browser_download_url": *"//' -e 's/"//')
+        fi
+        
+        if [ -z "$URL" ]; then
+            echo "{\"success\": false, \"error\": \"No download URL found for latest release\"}"
+            exit 0
+        fi
+        
+        rm -f "$TARGET_ZIP"
+        if [ -x "/data/adb/magisk/busybox" ]; then
+            /data/adb/magisk/busybox wget -q --no-check-certificate -O "$TARGET_ZIP" "$URL" 2>/dev/null
+        else
+            curl -L -k --connect-timeout 10 -m 60 -o "$TARGET_ZIP" "$URL" >/dev/null 2>&1
+        fi
+        
+        if [ ! -f "$TARGET_ZIP" ] || [ $(stat -c %s "$TARGET_ZIP" 2>/dev/null || echo 0) -lt 30000 ]; then
+            echo "{\"success\": false, \"error\": \"Downloaded file is corrupt or missing (size < 30KB)\"}"
+            exit 0
+        fi
+        
+        # Install with magisk
+        INSTALL_OUT=$(/data/adb/magisk/magisk --install-module "$TARGET_ZIP" 2>&1)
+        INST_EXIT=$?
+        
+        if [ $INST_EXIT -eq 0 ]; then
+            # Sync web directory so UI reflects updates immediately
+            if [ -d "/data/adb/modules/virtualap_m326b_fix/web" ]; then
+                cp -rf /data/adb/modules/virtualap_m326b_fix/web/* /data/local/virtualap/web/ 2>/dev/null
+                chmod 755 /data/local/virtualap/web/cgi-bin/* 2>/dev/null
+            fi
+            ESCAPED_LOG=$(echo "$INSTALL_OUT" | tr '\n' ' ' | sed 's/"/\\"/g')
+            echo "{\"success\": true, \"message\": \"Magisk module updated successfully!\", \"log\": \"$ESCAPED_LOG\"}"
+        else
+            ESCAPED_LOG=$(echo "$INSTALL_OUT" | tr '\n' ' ' | sed 's/"/\\"/g')
+            echo "{\"success\": false, \"error\": \"Magisk installation returned error code $INST_EXIT\", \"log\": \"$ESCAPED_LOG\"}"
+        fi
         ;;
 
     *)

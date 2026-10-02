@@ -61,6 +61,44 @@ MODDIR="${0%/*}"
         /data/adb/magisk/busybox httpd -p 0.0.0.0:8088 -h /data/local/virtualap/web 2>/dev/null
     fi
 
+    # 6. Apply saved carrier bypass and kernel settings on boot
+    if [ -f "/data/local/virtualap/settings.conf" ]; then
+        . "/data/local/virtualap/settings.conf" 2>/dev/null
+        if [ "$CFG_DUN_BYPASS" = "1" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            settings put global tether_dun_required 0 2>/dev/null
+            settings put global tether_dun_apn "" 2>/dev/null
+            settings put global tether_entitlement_check_state 0 2>/dev/null
+        fi
+        if [ "$CFG_TTL_BYPASS" = "1" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            TTL_VAL="${CFG_TARGET_TTL:-64}"
+            sysctl -w net.ipv4.ip_default_ttl="$TTL_VAL" 2>/dev/null || true
+            sysctl -w net.ipv6.conf.all.hop_limit="$TTL_VAL" 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -D POSTROUTING -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -I POSTROUTING 1 -j TTL --ttl-set "$TTL_VAL" 2>/dev/null || true
+        fi
+        if [ "$CFG_MSS_CLAMP" = "1" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            /system/bin/iptables -w 5 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -I FORWARD 1 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+        fi
+        if [ "$CFG_DNS_PROTECT" = "1" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            /system/bin/iptables -w 5 -t nat -D PREROUTING -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -I PREROUTING 1 -p udp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -I PREROUTING 1 -p tcp --dport 53 -j DNAT --to-destination 1.1.1.1:53 2>/dev/null || true
+        fi
+        if [ "$CFG_IPV6_PROTECT" = "1" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            /system/bin/ip6tables -w 5 -D FORWARD -j DROP 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -I FORWARD 1 -j DROP 2>/dev/null || true
+        fi
+        if [ "$CFG_BPF_OFFLOAD_DISABLED" = "1" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            settings put global tether_offload_disabled 1 2>/dev/null
+        fi
+        if [ "$CFG_PROVISIONING_SHIELD" = "1" ] || [ "$CFG_CARRIER_BYPASS" = "1" ]; then
+            setprop net.tethering.noprovisioning true 2>/dev/null
+            setprop persist.sys.tether.noprovisioning true 2>/dev/null
+        fi
+    fi
+
     # Function to maintain MTK Wi-Fi driver power and ap0 presence
     maintain_ap0() {
         # Check if Native Mode is active (module modifications completely disabled)

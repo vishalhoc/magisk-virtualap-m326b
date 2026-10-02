@@ -220,6 +220,7 @@
                 <p>Created by <b style="color:var(--accent-cyan);">hoc</b> | Samsung Galaxy M32 5G (SM-M326B / Dimensity 720)</p>
             </div>
             <div class="header-actions">
+                <button class="btn-refresh" id="btnHeaderUpdate" onclick="openUpdateModal()" style="background:#1e293b; color:var(--accent-green); border-color:var(--accent-green);">🔄 Check Updates</button>
                 <button class="btn-refresh" id="btnHeaderSettings" onclick="openSettingsTab()" style="background:#1e293b; color:var(--accent-cyan); border-color:var(--accent-cyan);">⚙️ Settings & Bypass</button>
                 <button class="btn-refresh" onclick="refreshCurrentTab(true)">🔄 Refresh</button>
             </div>
@@ -426,6 +427,18 @@
                     <div class="stat-row"><span class="stat-label">Operating Band</span><span class="stat-val" id="lblHsBand">-</span></div>
                     <div class="stat-row"><span class="stat-label">Max Allowed Clients</span><span class="stat-val" id="lblHsMax">10</span></div>
                     <div class="stat-row"><span class="stat-label">Wi-Fi 6 (802.11ax)</span><span class="stat-val" id="lblHsAx" style="color:var(--accent-green);">-</span></div>
+
+                    <!-- Multi-Vector Hotspot Detection Telemetry -->
+                    <div style="margin-top:14px; padding-top:12px; border-top:1px solid #1e293b;">
+                        <div style="font-size:0.78rem; font-weight:700; color:var(--accent-cyan); margin-bottom:8px; display:flex; justify-content:space-between;">
+                            <span>📡 MULTI-VECTOR DETECTION ENGINE</span>
+                            <span class="badge-pill cyan" style="font-size:0.65rem;">4 VECTORS</span>
+                        </div>
+                        <div class="stat-row"><span class="stat-label">Vector 1: Kernel Link State</span><span class="stat-val" id="lblDetIface">-</span></div>
+                        <div class="stat-row"><span class="stat-label">Vector 2: Wi-Fi Framework Role</span><span class="stat-val" id="lblDetWifi">-</span></div>
+                        <div class="stat-row"><span class="stat-label">Vector 3: TetheringManager Service</span><span class="stat-val" id="lblDetTether">-</span></div>
+                        <div class="stat-row"><span class="stat-label">Vector 4: Hostapd Daemon</span><span class="stat-val" id="lblDetHostapd">-</span></div>
+                    </div>
 
                     <div class="action-row" style="margin-top:16px;">
                         <button id="btnHsToggle" class="btn-ctrl btn-start" onclick="toggleHotspot()">🔥 Toggle Hotspot</button>
@@ -709,61 +722,140 @@
                 Controls below enforce network stealth across <b>ALL tethering methods</b> (Wi-Fi Hotspot, USB Tethering, Ethernet, and Virtual AP <code>ap0</code>), and allow you to dedicate 100% of mobile data exclusively to connected clients.
             </div>
 
-            <div class="grid-2">
-                <!-- Card 1: Carrier Hotspot Detection Bypass -->
-                <div class="card">
-                    <div class="card-title">
-                        <span>🛡️ Carrier Hotspot Detection Bypass</span>
-                        <div id="bypassStatusBadge" class="status-badge stopped">
-                            <span class="dot"></span>
-                            <span id="bypassStatusText">DISABLED</span>
-                        </div>
-                    </div>
-
-                    <div class="switch-row">
-                        <div class="switch-info">
-                            <div class="switch-title" style="color:var(--accent-cyan); font-weight:700;">Master Carrier Bypass</div>
-                            <div class="switch-desc">Cloaks tethering across Hotspot, USB, Ethernet, and Virtual AP (ap0)</div>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="chkMasterBypass" onchange="toggleBypass(this.checked)">
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-
-                    <div style="margin-top: 14px; font-size: 0.8rem;">
-                        <div class="stat-row">
-                            <span class="stat-label">DUN APN & Entitlement</span>
-                            <span class="stat-val" id="lblDunBypassState" style="color:var(--accent-green);">Bypassed</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">TCP MSS Clamping (PMTU)</span>
-                            <span class="stat-val" id="lblMssClampState" style="color:var(--accent-green);">Active</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">DNS Leak & DPI Protection</span>
-                            <span class="stat-val" id="lblDnsProtectState" style="color:var(--accent-green);">1.1.1.1 Cloaked</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">IPv6 EUI-64 Leak Shield</span>
-                            <span class="stat-val" id="lblIpv6ProtectState" style="color:var(--accent-green);">Blocked</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="stat-label">Sysctl Default Hop Limit</span>
-                            <span class="stat-val" id="lblTtlState">TTL 64</span>
-                        </div>
-                    </div>
-
-                    <div class="form-row" style="margin-top: 14px;">
-                        <label>Sysctl Default Hop Limit / TTL</label>
-                        <div style="display:flex; gap:8px;">
-                            <input type="number" id="txtTargetTtl" value="64" min="32" max="255">
-                            <button class="btn-save" onclick="applyTtlConfig()">Save TTL</button>
-                        </div>
-                        <div class="input-hint">Default 64 matches native Android/Linux stack packets to carrier towers.</div>
+            <!-- Card 1: Modular Carrier Hotspot Detection Bypass Suite -->
+            <div class="card" style="margin-bottom:16px;">
+                <div class="card-title">
+                    <span>🛡️ Modular Carrier Hotspot Detection Bypass Suite</span>
+                    <div id="bypassStatusBadge" class="status-badge stopped">
+                        <span class="dot"></span>
+                        <span id="bypassStatusText">DISABLED</span>
                     </div>
                 </div>
 
+                <!-- Master Switch -->
+                <div class="switch-row" style="background:#0f172a; padding:12px 14px; border-radius:8px; margin-bottom:16px; border:1px solid #1e293b;">
+                    <div class="switch-info">
+                        <div class="switch-title" style="color:var(--accent-cyan); font-weight:700; font-size:1rem;">⚡ Master Carrier Bypass (All Methods)</div>
+                        <div class="switch-desc">Simultaneously enables or disables all 7 anti-detection vectors across Hotspot, USB, Ethernet, and ap0</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkMasterBypass" onchange="toggleBypass(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;">
+                    Individual Anti-Detection Method Controls:
+                </div>
+
+                <div class="grid-2" style="margin-bottom:0; gap:12px;">
+                    <!-- Vector 1: TTL / Hop Limit -->
+                    <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+                        <div class="switch-row" style="margin-bottom:6px;">
+                            <div class="switch-info">
+                                <div class="switch-title"><span class="badge-pill cyan" style="font-size:0.65rem;">Vector 1</span> IP TTL / Hop Limit Cloak</div>
+                                <div class="switch-desc">Masks decrementing hop counts so tethered PC packets appear to originate from the phone</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="chkMethodTtl" onchange="toggleMethod('ttl', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; margin-top:8px;">
+                            <label style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">Target TTL:</label>
+                            <input type="number" id="txtTargetTtl" value="64" min="32" max="255" style="width:70px; padding:4px 8px; font-size:0.8rem;">
+                            <button class="btn-save" onclick="applyTtlConfig()" style="padding:4px 10px; font-size:0.75rem;">Save TTL</button>
+                            <span id="lblLiveSysTtl" style="font-size:0.75rem; color:var(--accent-green); margin-left:auto;">Live: 64</span>
+                        </div>
+                    </div>
+
+                    <!-- Vector 2: DUN APN & Entitlement -->
+                    <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <div class="switch-title"><span class="badge-pill green" style="font-size:0.65rem;">Vector 2</span> Carrier DUN APN & Entitlement</div>
+                                <div class="switch-desc">Disables <code>tether_dun_required</code> and clears carrier provisioning queries</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="chkMethodDun" onchange="toggleMethod('dun', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Vector 3: TCP MSS Clamping -->
+                    <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <div class="switch-title"><span class="badge-pill amber" style="font-size:0.65rem;">Vector 3</span> TCP MSS Clamping (PMTU)</div>
+                                <div class="switch-desc">Reshapes TCP SYN packet sizes to mobile MTU boundaries, defeating OS-level fingerprinting</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="chkMethodMss" onchange="toggleMethod('mss', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Vector 4: DNS Leak & DPI Redirection -->
+                    <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <div class="switch-title"><span class="badge-pill cyan" style="font-size:0.65rem;">Vector 4</span> DNS Leak & DPI Cloak</div>
+                                <div class="switch-desc">Redirects port 53 DNS to neutral <code>1.1.1.1</code>, preventing carrier inspection of PC domain lookups</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="chkMethodDns" onchange="toggleMethod('dns', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Vector 5: IPv6 EUI-64 Leak Shield -->
+                    <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <div class="switch-title"><span class="badge-pill green" style="font-size:0.65rem;">Vector 5</span> IPv6 EUI-64 Leak Shield</div>
+                                <div class="switch-desc">Blocks unmasked client IPv6 packets containing hardware MAC addresses</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="chkMethodIpv6" onchange="toggleMethod('ipv6', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Vector 6: BPF Hardware Tether Offload Disable -->
+                    <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <div class="switch-title"><span class="badge-pill amber" style="font-size:0.65rem;">Vector 6</span> BPF Tether Offload Shield</div>
+                                <div class="switch-desc">Forces all packets through Netfilter/iptables so hardware offload cannot bypass stealth rules</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="chkMethodBpf" onchange="toggleMethod('bpf', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Vector 7: Android Platform Tether Provisioning Shield -->
+                    <div style="background:#090d16; border:1px solid #1e293b; border-radius:8px; padding:12px; grid-column:1 / -1;">
+                        <div class="switch-row">
+                            <div class="switch-info">
+                                <div class="switch-title"><span class="badge-pill cyan" style="font-size:0.65rem;">Vector 7</span> Platform Tether Provisioning Shield</div>
+                                <div class="switch-desc">Overrides Android platform properties (<code>net.tethering.noprovisioning=true</code>) to bypass carrier checks</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="chkMethodProv" onchange="toggleMethod('provisioning', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-2">
                 <!-- Card 2: Dedicated Router Mode (100% Data to Tethering) -->
                 <div class="card">
                     <div class="card-title">
@@ -801,6 +893,34 @@
                     <div class="stat-row">
                         <span class="stat-label">Web UI Management</span>
                         <span class="stat-val" style="color:var(--accent-cyan);">Protected (localhost / LAN)</span>
+                    </div>
+                </div>
+
+                <!-- Card: Magisk Module Updater (GitHub Releases) -->
+                <div class="card" id="cardModuleUpdater" style="border-color:var(--accent-green);">
+                    <div class="card-title">
+                        <span>📦 Magisk Module Updater</span>
+                        <div id="updateStatusBadge" class="status-badge active" style="background:rgba(16, 185, 129, 0.15); color:var(--accent-green); border:1px solid rgba(16, 185, 129, 0.3);">
+                            <span class="dot"></span>
+                            <span id="updateStatusText">READY</span>
+                        </div>
+                    </div>
+                    <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:12px;">
+                        Download & install official releases directly from GitHub repository <code>vishalhoc/magisk-virtualap-m326b</code> via live Magisk installation engine.
+                    </p>
+                    <div style="font-size:0.8rem; margin-bottom:12px;">
+                        <div class="stat-row"><span class="stat-label">Installed Version</span><span class="stat-val" id="lblCurVer" style="color:var(--accent-cyan); font-weight:700;">v3.1 (310)</span></div>
+                        <div class="stat-row"><span class="stat-label">Latest GitHub Release</span><span class="stat-val" id="lblLatestVer">-</span></div>
+                        <div class="stat-row"><span class="stat-label">Release Title</span><span class="stat-val" id="lblReleaseTitle">-</span></div>
+                        <div class="stat-row"><span class="stat-label">Release Date</span><span class="stat-val" id="lblReleaseDate">-</span></div>
+                    </div>
+                    <div class="action-row" style="display:flex; gap:8px; margin-bottom:10px;">
+                        <button class="btn-refresh" id="btnCheckUpdateAction" onclick="checkModuleUpdate(true)" style="background:#1e293b; color:var(--accent-cyan); border-color:var(--accent-cyan); flex:1;">🔍 Check Updates</button>
+                        <button class="btn-ctrl btn-start" id="btnInstallUpdateAction" onclick="installModuleUpdate()" style="background:var(--accent-green); color:#000; font-weight:700; flex:1; display:none;">⚡ Install Latest</button>
+                    </div>
+                    <div id="updateLogContainer" style="display:none; margin-top:8px;">
+                        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Installation Output Log:</div>
+                        <pre id="updateTerminalLog" style="background:#090d16; border:1px solid #1e293b; border-radius:6px; padding:8px; font-size:0.75rem; color:#a5f3fc; max-height:140px; overflow-y:auto; white-space:pre-wrap;"></pre>
                     </div>
                 </div>
             </div>
@@ -1419,6 +1539,20 @@
                 document.getElementById('chkIpFwd').checked = !!d.ip_forward;
                 document.getElementById('chkBpfOffload').checked = !!d.bpf_offload;
 
+                if (d.detection_vectors) {
+                    const dv = d.detection_vectors;
+                    if (document.getElementById('lblDetIface')) {
+                        document.getElementById('lblDetIface').innerText = dv.kernel_iface.desc;
+                        document.getElementById('lblDetIface').style.color = dv.kernel_iface.active ? 'var(--accent-green)' : 'var(--text-muted)';
+                        document.getElementById('lblDetWifi').innerText = dv.wifi_framework.desc;
+                        document.getElementById('lblDetWifi').style.color = dv.wifi_framework.active ? 'var(--accent-green)' : 'var(--text-muted)';
+                        document.getElementById('lblDetTether').innerText = dv.tethering_service.desc;
+                        document.getElementById('lblDetTether').style.color = dv.tethering_service.active ? 'var(--accent-green)' : 'var(--text-muted)';
+                        document.getElementById('lblDetHostapd').innerText = dv.hostapd_daemon.desc;
+                        document.getElementById('lblDetHostapd').style.color = dv.hostapd_daemon.active ? 'var(--accent-green)' : 'var(--text-muted)';
+                    }
+                }
+
                 if (!isBusy && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'SELECT') {
                     if (d.ssid) document.getElementById('txtHsSSID').value = d.ssid;
                     if (d.password) document.getElementById('txtHsPass').value = d.password;
@@ -1664,16 +1798,18 @@
                     chkMaster.checked = false;
                 }
 
-                // Sub indicators
-                document.getElementById('lblDunBypassState').innerText = d.dun_bypass ? 'Bypassed (type=default)' : 'Default (Stock)';
-                document.getElementById('lblDunBypassState').style.color = d.dun_bypass ? 'var(--accent-green)' : 'var(--text-muted)';
-                document.getElementById('lblMssClampState').innerText = d.mss_clamp ? 'Active (PMTU clamped)' : 'Disabled';
-                document.getElementById('lblMssClampState').style.color = d.mss_clamp ? 'var(--accent-green)' : 'var(--text-muted)';
-                document.getElementById('lblDnsProtectState').innerText = d.dns_protect ? '1.1.1.1 Cloaked' : 'Carrier Default';
-                document.getElementById('lblDnsProtectState').style.color = d.dns_protect ? 'var(--accent-green)' : 'var(--text-muted)';
-                document.getElementById('lblIpv6ProtectState').innerText = d.ipv6_protect ? 'Blocked (EUI-64 Shielded)' : 'Exposed';
-                document.getElementById('lblIpv6ProtectState').style.color = d.ipv6_protect ? 'var(--accent-green)' : 'var(--accent-amber)';
-                document.getElementById('lblTtlState').innerText = 'TTL ' + (d.target_ttl || 64);
+                // Individual Method Toggles
+                if (document.getElementById('chkMethodTtl')) document.getElementById('chkMethodTtl').checked = !!d.ttl_bypass;
+                if (document.getElementById('chkMethodDun')) document.getElementById('chkMethodDun').checked = !!d.dun_bypass;
+                if (document.getElementById('chkMethodMss')) document.getElementById('chkMethodMss').checked = !!d.mss_clamp;
+                if (document.getElementById('chkMethodDns')) document.getElementById('chkMethodDns').checked = !!d.dns_protect;
+                if (document.getElementById('chkMethodIpv6')) document.getElementById('chkMethodIpv6').checked = !!d.ipv6_protect;
+                if (document.getElementById('chkMethodBpf')) document.getElementById('chkMethodBpf').checked = !!d.bpf_offload_disabled;
+                if (document.getElementById('chkMethodProv')) document.getElementById('chkMethodProv').checked = !!d.provisioning_shield;
+
+                if (document.getElementById('lblLiveSysTtl')) {
+                    document.getElementById('lblLiveSysTtl').innerText = 'Live: ' + (d.current_sys_ttl || 64);
+                }
                 if (document.activeElement.id !== 'txtTargetTtl') {
                     document.getElementById('txtTargetTtl').value = d.target_ttl || 64;
                 }
@@ -1726,6 +1862,107 @@
                 fetchSettingsStatus();
             } catch(e) {
                 showToast('❌ Failed to toggle carrier bypass: ' + e);
+            }
+        }
+
+        async function toggleMethod(method, enable) {
+            const ttl = document.getElementById('txtTargetTtl') ? document.getElementById('txtTargetTtl').value || '64' : '64';
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=settings_toggle_method&method=${method}&enable=${enable ? '1' : '0'}&ttl=${ttl}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message || (enable ? 'Method enabled' : 'Method disabled'));
+                fetchSettingsStatus();
+            } catch(e) {
+                showToast('❌ Failed to toggle method: ' + e);
+            }
+        }
+
+        function openUpdateModal() {
+            openSettingsTab();
+            const card = document.getElementById('cardModuleUpdater');
+            if (card) {
+                card.scrollIntoView({ behavior: 'smooth' });
+            }
+            checkModuleUpdate(true);
+        }
+
+        async function checkModuleUpdate(showToastAlert = false) {
+            const btn = document.getElementById('btnCheckUpdateAction');
+            if (btn) btn.innerText = '⏳ Checking GitHub...';
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=module_check_update&_t=' + Date.now());
+                const d = await res.json();
+                if (d.success) {
+                    if (document.getElementById('lblCurVer')) document.getElementById('lblCurVer').innerText = d.current_version;
+                    if (document.getElementById('lblLatestVer')) document.getElementById('lblLatestVer').innerText = d.latest_version;
+                    if (document.getElementById('lblReleaseTitle')) document.getElementById('lblReleaseTitle').innerText = d.release_title || 'Release ' + d.latest_version;
+                    if (document.getElementById('lblReleaseDate')) document.getElementById('lblReleaseDate').innerText = d.published_at ? new Date(d.published_at).toLocaleDateString() : '-';
+
+                    const badge = document.getElementById('updateStatusBadge');
+                    const badgeTxt = document.getElementById('updateStatusText');
+                    const btnInstall = document.getElementById('btnInstallUpdateAction');
+
+                    if (d.has_update) {
+                        badge.className = 'status-badge active';
+                        badge.style.background = 'rgba(239, 68, 68, 0.2)';
+                        badge.style.color = 'var(--accent-red)';
+                        badge.style.border = '1px solid rgba(239, 68, 68, 0.4)';
+                        badgeTxt.innerText = `UPDATE AVAILABLE: ${d.latest_version}`;
+                        if (btnInstall) {
+                            btnInstall.style.display = 'inline-block';
+                            btnInstall.innerText = `⚡ Install ${d.latest_version} Now`;
+                        }
+                        if (showToastAlert) showToast(`🚀 New update available: ${d.latest_version}!`);
+                    } else {
+                        badge.className = 'status-badge active';
+                        badge.style.background = 'rgba(16, 185, 129, 0.15)';
+                        badge.style.color = 'var(--accent-green)';
+                        badge.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                        badgeTxt.innerText = `UP TO DATE (${d.current_version})`;
+                        if (btnInstall) btnInstall.style.display = 'none';
+                        if (showToastAlert) showToast(`✅ Module is up to date (${d.current_version})`);
+                    }
+                } else {
+                    if (showToastAlert) showToast('⚠️ ' + (d.error || 'Failed to check updates'));
+                }
+            } catch(e) {
+                if (showToastAlert) showToast('❌ Update check error: ' + e);
+            } finally {
+                if (btn) btn.innerText = '🔍 Check Updates';
+            }
+        }
+
+        async function installModuleUpdate() {
+            if (!confirm('Download and install the latest Magisk module directly from GitHub?')) return;
+            const btn = document.getElementById('btnInstallUpdateAction');
+            const logBox = document.getElementById('updateLogContainer');
+            const term = document.getElementById('updateTerminalLog');
+            if (logBox) logBox.style.display = 'block';
+            if (term) term.innerText = 'Connecting to GitHub and downloading latest release package...\n';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerText = '⏳ Downloading & Installing...';
+            }
+
+            try {
+                const res = await fetch('/cgi-bin/api.sh?action=module_install_update&_t=' + Date.now());
+                const d = await res.json();
+                if (d.success) {
+                    if (term) term.innerText += (d.log || '') + '\n\n✅ Magisk module updated successfully! Please reboot your device or restart the service to apply.';
+                    showToast('🎉 Magisk module update completed!');
+                    checkModuleUpdate();
+                } else {
+                    if (term) term.innerText += (d.log || '') + '\n\n❌ Error: ' + (d.error || 'Installation failed');
+                    showToast('❌ Update installation failed');
+                }
+            } catch(e) {
+                if (term) term.innerText += '\n❌ Network/IPC Exception: ' + e;
+                showToast('❌ Update exception: ' + e);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = '⚡ Download & Install Latest';
+                }
             }
         }
 

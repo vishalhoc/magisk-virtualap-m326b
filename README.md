@@ -3,10 +3,39 @@
 
 [![Magisk](https://img.shields.io/badge/Magisk-v24.0+-brightgreen.svg)](https://github.com/topjohnwu/Magisk)
 [![SoC](https://img.shields.io/badge/MediaTek-MT6853%20Dimensity%20720-blue.svg)](https://www.mediatek.com)
-[![Version](https://img.shields.io/badge/Version-v3.0-orange.svg)](#version-30-features)
+[![Version](https://img.shields.io/badge/Version-v3.1-orange.svg)](#version-31-features)
 [![WebUI](https://img.shields.io/badge/Control%20Panel-Web%20CGI%20Portal-red.svg)](#web-control-panel)
 
-A complete systemless Magisk module created by **hoc** providing concurrent **Virtual AP (`ap0`)**, **Downstream Network ADB & Root Controller**, **Carrier Hotspot Detection Bypass**, **Dedicated Router Mode**, and multi-interface connectivity management with an integrated Web Control Panel for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
+A complete systemless Magisk module created by **hoc** providing concurrent **Virtual AP (`ap0`)**, **Multi-Vector Hotspot Detection Engine**, **Modular Carrier Hotspot Anti-Detection Suite (Individual Toggles)**, **1-Click In-App GitHub Module Updater**, **Downstream Network ADB & Root Controller**, **Dedicated Router Mode**, and multi-interface connectivity management with an integrated Web Control Panel on port 8088 for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
+
+---
+
+## 🌟 What's New in v3.1
+
+### 📡 Multi-Vector Advanced Hotspot Detection Engine
+- **4-Vector Live Telemetry:** Evaluates hotspot state across:
+  - **Vector 1 (Kernel Link State):** Real-time operstate and UP flags on `swlan0`, `wlan1`, `ap0`, and `wlan0`.
+  - **Vector 2 (Wi-Fi Framework Role):** Detects `ROLE_SOFTAP_TETHERED`, `TetheredState`, and `SoftApState{state=13}`.
+  - **Vector 3 (TetheringManager Service):** Live query of Android's central active tethering interface registry.
+  - **Vector 4 (Hostapd Daemon):** Tracks PID and active state of the background hostapd daemon.
+- **Multi-Interface ARP & Neighbor Scanner:** Detects connected client IPs and MACs across all AP netdevs simultaneously.
+
+### 🛡️ Modular Carrier Hotspot Anti-Detection Suite (Individual Toggle Buttons)
+Every detection vector now has its **own independent Enable/Disable switch button**:
+- **Vector 1: IP TTL / Hop Limit Cloak:** Customizable target TTL (default 64) with sysctl and iptables POSTROUTING mangle rules.
+- **Vector 2: Carrier DUN APN & Entitlement Bypass:** Sets `tether_dun_required=0` and disables entitlement provisioning checks.
+- **Vector 3: TCP MSS Clamping (PMTU):** Clamps TCP SYN packet sizes to mobile MTU boundaries.
+- **Vector 4: DNS Leak & DPI Cloaking:** Intercepts port 53 DNS queries and routes to neutral Cloudflare `1.1.1.1`.
+- **Vector 5: IPv6 EUI-64 Leak Shield:** Blocks unmasked client IPv6 traffic containing hardware MAC identifiers.
+- **Vector 6: BPF Hardware Tether Offload Disable:** Disables `tether_offload_disabled=1` so hardware offload cannot bypass firewall rules.
+- **Vector 7: Platform Tether Provisioning Shield:** Enforces `net.tethering.noprovisioning=true` at the system property level.
+- **⚡ Master Carrier Bypass:** 1-Click master switch to toggle all vectors at once.
+
+### 📦 1-Click Magisk Module Updater (GitHub Releases)
+- **Direct GitHub Releases Integration:** In-app query against `vishalhoc/magisk-virtualap-m326b` for new releases.
+- **Live In-App Installation:** Downloads the latest zip asset and runs `magisk --install-module` directly inside the control panel.
+- **Live Terminal Log Console:** Displays live download and installation output in real time.
+- **Native Magisk App Channel:** Integrated `updateJson` in `module.prop` for native update alerts in Magisk Manager.
 
 ---
 
