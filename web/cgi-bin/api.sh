@@ -1118,15 +1118,19 @@ EOF
             /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p tcp --dport 53 -j ACCEPT
             /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p udp --sport 67:68 -j ACCEPT
             
-            # CRITICAL FIX: Allow Android System, Radio/RIL & NetworkStack (UID 0-9999)
-            # Preserves NetworkMonitor HTTP 204 checks & RIL modem keepalive so Android never marks network as dead and never drops mobile data!
-            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 0-9999 -j ACCEPT
+            # Allow ICMP & established traffic for cellular network health
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -p icmp -j ACCEPT
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 
-            # BLOCK ALL on-device Android apps (UID 10000+) from Mobile Data WAN!
-            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o ccmni+ -j DROP
-            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o rmnet+ -j DROP
-            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o v4-rmnet+ -j DROP
-            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -o pdp+ -j DROP
+            # Allow Android System, Radio/RIL, Telecom, Carrier & Mainline Apex packages (UID 0-10299)
+            # Preserves carrier provisioning, network activation & connectivity probes so data can be toggled on/off freely
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 0-10299 -j ACCEPT
+
+            # BLOCK ONLY third-party user apps (UID 10300-99999) from Mobile Data WAN!
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o ccmni+ -j DROP
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o rmnet+ -j DROP
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o v4-rmnet+ -j DROP
+            /system/bin/iptables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o pdp+ -j DROP
             
             /system/bin/iptables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
             /system/bin/iptables -w 5 -I OUTPUT 1 -j DEDICATED_ROUTER_OUT 2>/dev/null || true
@@ -1143,17 +1147,18 @@ EOF
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o eth+ -j ACCEPT
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -p udp --dport 53 -j ACCEPT
             /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -p tcp --dport 53 -j ACCEPT
-            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 0-9999 -j ACCEPT
-            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o ccmni+ -j DROP
-            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o rmnet+ -j DROP
-            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o v4-rmnet+ -j DROP
-            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -o pdp+ -j DROP
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -p icmpv6 -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 0-10299 -j ACCEPT
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o ccmni+ -j DROP
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o rmnet+ -j DROP
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o v4-rmnet+ -j DROP
+            /system/bin/ip6tables -w 5 -A DEDICATED_ROUTER_OUT -m owner --uid-owner 10300-99999 -o pdp+ -j DROP
             /system/bin/ip6tables -w 5 -D OUTPUT -j DEDICATED_ROUTER_OUT 2>/dev/null || true
             /system/bin/ip6tables -w 5 -I OUTPUT 1 -j DEDICATED_ROUTER_OUT 2>/dev/null || true
 
             # Android system power/mobile data persistence
             settings put global mobile_data_always_on 1 2>/dev/null || true
-            svc data enable 2>/dev/null || true
 
             echo "{\"success\": true, \"dedicated_router\": true, \"message\": \"Dedicated Router Active: Phone apps isolated from internet, 100% data routed to tethering (Network validation preserved)\"}"
         else

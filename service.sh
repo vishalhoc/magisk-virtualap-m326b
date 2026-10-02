@@ -116,21 +116,43 @@ MODDIR="${0%/*}"
         if ! pgrep -f "httpd.*8088" >/dev/null 2>&1; then
             /data/adb/magisk/busybox httpd -p 0.0.0.0:8088 -h /data/local/virtualap/web 2>/dev/null
         fi
-        # Maintain Dedicated Router Mode (prevent 5-10 minute mobile data drop)
+        # Maintain Dedicated Router Mode (prevent cellular WAN drops without breaking user toggles)
         if [ -f "/data/local/virtualap/dedicated_router.flag" ]; then
             settings put global mobile_data_always_on 1 2>/dev/null || true
-            svc data enable 2>/dev/null || true
 
-            # Periodic 60s cellular WAN keepalive
+            # Periodic 60s cellular WAN keepalive (only if WAN interface is alive)
             KEEPALIVE_CNT=${KEEPALIVE_CNT:-0}
             KEEPALIVE_CNT=$((KEEPALIVE_CNT + 1))
-            if [ $KEEPALIVE_CNT -ge 6 ]; then
+            if [ $KEEPALIVE_CNT -ge 4 ]; then
                 KEEPALIVE_CNT=0
-                if [ -d "/sys/class/net/v4-rmnet0" ]; then
-                    ping -c 1 -W 2 -I v4-rmnet0 1.1.1.1 >/dev/null 2>&1 || true
-                elif [ -d "/sys/class/net/rmnet0" ]; then
-                    ping -c 1 -W 2 -I rmnet0 1.1.1.1 >/dev/null 2>&1 || true
+                WAN_IF=$(ip -4 -o addr show 2>/dev/null | grep -E "v4-rmnet|rmnet" | awk '{print $2}' | head -n1)
+                if [ -n "$WAN_IF" ]; then
+                    ping -c 1 -W 2 -I "$WAN_IF" 1.1.1.1 >/dev/null 2>&1 || true
                 fi
+            fi
+        fi
+
+        # Maintain Dynamic Upstream Routing for Virtual AP (ap0)
+        # Prevents internet from dying on connected devices when cellular re-indexes (e.g. v4-rmnet0 <-> v4-rmnet10)
+        if [ -d "/sys/class/net/ap0" ] && pgrep -f "hostapd" >/dev/null 2>&1; then
+            ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev v4-rmnet' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
+            [ -z "$ACTIVE_WAN_TBL" ] && ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev rmnet' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
+            [ -z "$ACTIVE_WAN_TBL" ] && ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev wlan' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
+
+            if [ -n "$ACTIVE_WAN_TBL" ]; then
+                CUR_AP_TBL=$(ip rule show 2>/dev/null | grep -E "7010:.*iif ap0" | awk '{print $NF}' | head -n1)
+                if [ "$CUR_AP_TBL" != "$ACTIVE_WAN_TBL" ]; then
+                    ip rule del pref 7010 2>/dev/null || true
+                    ip rule add from all iif ap0 lookup "$ACTIVE_WAN_TBL" pref 7010 2>/dev/null || true
+                fi
+
+                # Guarantee NAT MASQUERADE and forwarding rules survive network transitions
+                iptables -t nat -C POSTROUTING -s 192.168.42.0/24 ! -d 192.168.42.0/24 -j MASQUERADE 2>/dev/null || \
+                    iptables -t nat -I POSTROUTING 1 -s 192.168.42.0/24 ! -d 192.168.42.0/24 -j MASQUERADE 2>/dev/null || true
+                iptables -C FORWARD -i ap0 -j ACCEPT 2>/dev/null || \
+                    iptables -I FORWARD 1 -i ap0 -j ACCEPT 2>/dev/null || true
+                iptables -C FORWARD -o ap0 -j ACCEPT 2>/dev/null || \
+                    iptables -I FORWARD 1 -o ap0 -j ACCEPT 2>/dev/null || true
             fi
         fi
 
