@@ -15,7 +15,7 @@ else
 fi
 
 echo "Launching Web Control Panel in browser..."
-am start -a android.intent.action.VIEW -d "http://127.0.0.1:8088" >/dev/null 2>&1
+am start -a android.intent.action.VIEW -d "http://127.0.0.1:8088" -f 0x14000000 >/dev/null 2>&1
 
 echo ""
 echo "Control Panel URL: http://localhost:8088"
