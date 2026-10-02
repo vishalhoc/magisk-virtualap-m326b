@@ -53,15 +53,20 @@ remove_firewall() {
 
 apply_auto_auth() {
     # Ensure permissive network ADB debugging without RSA pairing roadblocks
-    if command -v resetprop >/dev/null 2>&1; then
-        resetprop ro.adb.secure 0 2>/dev/null || true
-        resetprop ro.debuggable 1 2>/dev/null || true
-    elif [ -x /data/adb/magisk/magisk ]; then
-        /data/adb/magisk/magisk resetprop ro.adb.secure 0 2>/dev/null || true
-        /data/adb/magisk/magisk resetprop ro.debuggable 1 2>/dev/null || true
+    CUR_SEC=$(getprop ro.adb.secure)
+    CUR_DBG=$(getprop ro.debuggable)
+    if [ "$CUR_SEC" != "0" ] || [ "$CUR_DBG" != "1" ]; then
+        if command -v resetprop >/dev/null 2>&1; then
+            resetprop ro.adb.secure 0 2>/dev/null || true
+            resetprop ro.debuggable 1 2>/dev/null || true
+        elif [ -x /data/adb/magisk/magisk ]; then
+            /data/adb/magisk/magisk resetprop ro.adb.secure 0 2>/dev/null || true
+            /data/adb/magisk/magisk resetprop ro.debuggable 1 2>/dev/null || true
+        fi
     fi
     setprop persist.adb.nonblocking_ffs 0 2>/dev/null || true
-    settings put global adb_wifi_enabled 1 2>/dev/null || true
+    # NOTE: Never enable 'adb_wifi_enabled'. AOSP Wireless Debugging requires Wi-Fi client
+    # mode and causes Wi-Fi/AP disassociation loops on MT6853 when flipped in AP mode.
 
     # Backup and ensure /data/misc/adb/adb_keys permissions
     if [ -f /data/misc/adb/adb_keys ]; then
@@ -81,10 +86,10 @@ maintain_downstream_ips() {
     load_config
     [ "$CFG_ADB_STATIC_IPS" = "1" ] || return 0
 
-    # 1. VirtualAP hardware ap0
-    if [ -d "/sys/class/net/ap0" ]; then
+    # 1. VirtualAP hardware ap0 (managed by start-ap; only assign if ap0 is up and completely unassigned)
+    if [ -d "/sys/class/net/ap0" ] && ! pgrep -f "hostapd" >/dev/null 2>&1; then
         AP_IP="${CFG_AP0_STATIC_IP:-192.168.42.1}"
-        if ! /system/bin/ip addr show dev ap0 2>/dev/null | grep -q "$AP_IP"; then
+        if ! /system/bin/ip -4 addr show dev ap0 2>/dev/null | grep -q "$AP_IP"; then
             /system/bin/ip addr add "$AP_IP/24" dev ap0 2>/dev/null || true
         fi
     fi
@@ -94,7 +99,7 @@ maintain_downstream_ips() {
         if [ -d "/sys/class/net/$udev" ]; then
             if /system/bin/ip link show "$udev" 2>/dev/null | grep -q "UP"; then
                 USB_IP="${CFG_USB_STATIC_IP:-192.168.44.1}"
-                if ! /system/bin/ip addr show dev "$udev" 2>/dev/null | grep -q "$USB_IP"; then
+                if ! /system/bin/ip -4 addr show dev "$udev" 2>/dev/null | grep -q "$USB_IP"; then
                     /system/bin/ip addr add "$USB_IP/24" dev "$udev" 2>/dev/null || true
                 fi
             fi
@@ -107,7 +112,7 @@ maintain_downstream_ips() {
         ename="${edev##*/}"
         if /system/bin/ip link show "$ename" 2>/dev/null | grep -q "UP"; then
             ETH_IP="${CFG_ETH_STATIC_IP:-192.168.45.1}"
-            if ! /system/bin/ip addr show dev "$ename" 2>/dev/null | grep -q "$ETH_IP"; then
+            if ! /system/bin/ip -4 addr show dev "$ename" 2>/dev/null | grep -q "$ETH_IP"; then
                 /system/bin/ip addr add "$ETH_IP/24" dev "$ename" 2>/dev/null || true
             fi
         fi
@@ -122,7 +127,6 @@ start_adb() {
     save_config
 
     settings put global adb_enabled 1 2>/dev/null || true
-    settings put global adb_wifi_enabled 1 2>/dev/null || true
     setprop service.adb.tcp.port "$PORT"
 
     if [ "$CFG_ADB_AUTO_AUTH" = "1" ]; then
@@ -153,21 +157,21 @@ maintain() {
     [ "$CFG_ADB_ENABLED" = "1" ] || return 0
     PORT="${CFG_ADB_PORT:-5555}"
 
-    # Verify property
-    if [ "$(getprop service.adb.tcp.port)" != "$PORT" ]; then
+    # Only touch properties or restart adbd if it is NOT currently configured or listening
+    CUR_PORT=$(getprop service.adb.tcp.port)
+    if [ "$CUR_PORT" != "$PORT" ]; then
         setprop service.adb.tcp.port "$PORT"
         setprop ctl.restart adbd 2>/dev/null || true
     fi
 
-    # Verify listener
+    # Verify listener is active; only trigger restart if adbd dropped the port
     if ! $BUSYBOX netstat -tlpn 2>/dev/null | grep -qE "(:|:::)$PORT.*adbd"; then
         setprop service.adb.tcp.port "$PORT"
         setprop ctl.restart adbd 2>/dev/null || true
     fi
 
+    # Ensure firewall rule is present (lightweight check)
     apply_firewall "$PORT"
-    [ "$CFG_ADB_AUTO_AUTH" = "1" ] && apply_auto_auth
-    maintain_downstream_ips
 }
 
 get_status_json() {

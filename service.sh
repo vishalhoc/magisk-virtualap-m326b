@@ -72,21 +72,26 @@ MODDIR="${0%/*}"
             return 0
         fi
 
-        # Keep MTK Wi-Fi driver powered on without enabling Android Wi-Fi / Hotspot
-        if [ -e /dev/wmtWifi ]; then
-            echo 1 > /dev/wmtWifi 2>/dev/null
-        fi
+        # If hostapd is running, ap0 is active and transmitting.
+        # DO NOT write to /dev/wmtWifi or touch interface names while hostapd is active,
+        # as poking the MTK driver causes radio glitches and client disassociations.
+        if ! pgrep -f "hostapd" >/dev/null 2>&1; then
+            # Keep MTK Wi-Fi driver powered on without enabling Android Wi-Fi / Hotspot
+            if [ -e /dev/wmtWifi ]; then
+                echo 1 > /dev/wmtWifi 2>/dev/null
+            fi
 
-        # Pre-create / rename ap0 if missing
-        if [ ! -d "/sys/class/net/ap0" ]; then
-            if [ -d "/sys/class/net/swlan0" ]; then
-                ip link set swlan0 down 2>/dev/null
-                ip link set swlan0 name ap0 2>/dev/null
-            elif [ -x "/data/local/virtualap/bin/iw.real" ]; then
-                /data/local/virtualap/bin/iw.real dev wlan0 interface add ap0 type __ap 2>/dev/null || true
+            # Pre-create / rename ap0 if missing
+            if [ ! -d "/sys/class/net/ap0" ]; then
                 if [ -d "/sys/class/net/swlan0" ]; then
                     ip link set swlan0 down 2>/dev/null
                     ip link set swlan0 name ap0 2>/dev/null
+                elif [ -x "/data/local/virtualap/bin/iw.real" ]; then
+                    /data/local/virtualap/bin/iw.real dev wlan0 interface add ap0 type __ap 2>/dev/null || true
+                    if [ -d "/sys/class/net/swlan0" ]; then
+                        ip link set swlan0 down 2>/dev/null
+                        ip link set swlan0 name ap0 2>/dev/null
+                    fi
                 fi
             fi
         fi
