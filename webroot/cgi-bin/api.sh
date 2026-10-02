@@ -497,7 +497,10 @@ EOF
         P_UPSTREAM=$(get_param "upstream" "auto")
         P_BAND=$(get_param "band" "5")
         P_CHAN=$(get_param "channel" "")
-        P_WIDTH=$(get_param "width" "20")
+        P_WIDTH=$(get_param "width" "")
+        if [ -z "$P_WIDTH" ]; then
+            [ "$P_BAND" = "5" ] && P_WIDTH="80" || P_WIDTH="20"
+        fi
         P_GW=$(get_param "gateway" "192.168.42.1")
         P_DNS=$(get_param "dns" "1.1.1.1")
         P_SEC=$(get_param "security" "wpa2")

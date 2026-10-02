@@ -304,6 +304,9 @@ phy_idx() {
     if [ -z "$idx" ] && [ -d "/sys/class/net/$PHY_IFACE/phy80211" ]; then
         idx=$($CAT "/sys/class/net/$PHY_IFACE/phy80211/name" 2>/dev/null | $SED 's/^phy//')
     fi
+    if [ -z "$idx" ] && [ -d "/sys/class/net/$AP_IFACE/phy80211" ]; then
+        idx=$($CAT "/sys/class/net/$AP_IFACE/phy80211/name" 2>/dev/null | $SED 's/^phy//')
+    fi
     $ECHO "${idx:-0}"
 }
 
@@ -317,8 +320,14 @@ phy_info() {
     $PRINTF '%s' "$PHY_INFO_CACHE"
 }
 
-phy_supports_vht()  { phy_info | $GREP -q 'VHT Capabilities'; }
-phy_supports_ht40() { phy_info | $GREP -q 'HT20/HT40'; }
+phy_supports_vht()  {
+    [ -e /dev/wmtWifi ] && return 0
+    phy_info | $GREP -q 'VHT Capabilities'
+}
+phy_supports_ht40() {
+    [ -e /dev/wmtWifi ] && return 0
+    phy_info | $GREP -q 'HT20/HT40'
+}
 
 # 80MHz block center channel index (vht_oper_centr_freq_seg0_idx) for a primary
 # 5GHz channel. Empty if the channel is not part of a valid 80MHz block.

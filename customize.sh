@@ -4,6 +4,16 @@ ui_print "*       Device: SM-M326B (MT6853 / Dimensity) *"
 ui_print "***********************************************"
 
 ui_print "- Creating VirtualAP runtime directories..."
+# Sanitize potential CRLF line endings from Windows unzipping
+for s in "$MODPATH"/*.sh "$MODPATH"/files/*.sh "$MODPATH"/files/iw "$MODPATH"/files/start-ap "$MODPATH"/web/cgi-bin/*.sh "$MODPATH"/webroot/cgi-bin/*.sh; do
+    if [ -f "$s" ]; then
+        if [ -x /data/adb/magisk/busybox ]; then
+            /data/adb/magisk/busybox dos2unix "$s" 2>/dev/null || true
+        else
+            tr -d '\r' < "$s" > "$s.tmp" 2>/dev/null && mv -f "$s.tmp" "$s" 2>/dev/null || true
+        fi
+    fi
+done
 mkdir -p /data/local/virtualap/bin
 mkdir -p /data/local/virtualap/logs
 mkdir -p /data/local/virtualap/run
