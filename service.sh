@@ -97,6 +97,49 @@ MODDIR="${0%/*}"
             setprop net.tethering.noprovisioning true 2>/dev/null
             setprop persist.sys.tether.noprovisioning true 2>/dev/null
         fi
+        if [ "$CFG_PURE_PASSTHROUGH" = "1" ]; then
+            /system/bin/iptables -w 5 -N PURE_FORWARD 2>/dev/null || /system/bin/iptables -w 5 -F PURE_FORWARD
+            /system/bin/iptables -w 5 -A PURE_FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+            /system/bin/iptables -w 5 -A PURE_FORWARD -i ap0 -j ACCEPT
+            /system/bin/iptables -w 5 -A PURE_FORWARD -i rndis+ -j ACCEPT
+            /system/bin/iptables -w 5 -A PURE_FORWARD -i usb+ -j ACCEPT
+            /system/bin/iptables -w 5 -A PURE_FORWARD -i eth+ -j ACCEPT
+            /system/bin/iptables -w 5 -A PURE_FORWARD -i swlan+ -j ACCEPT
+            /system/bin/iptables -w 5 -A PURE_FORWARD -i wlan+ -j ACCEPT
+            /system/bin/iptables -w 5 -D FORWARD -j PURE_FORWARD 2>/dev/null || true
+            /system/bin/iptables -w 5 -I FORWARD 1 -j PURE_FORWARD 2>/dev/null || true
+
+            /system/bin/iptables -w 5 -t nat -N PURE_NAT 2>/dev/null || /system/bin/iptables -w 5 -t nat -F PURE_NAT
+            /system/bin/iptables -w 5 -t nat -A PURE_NAT -o rmnet+ -j MASQUERADE
+            /system/bin/iptables -w 5 -t nat -A PURE_NAT -o v4-rmnet+ -j MASQUERADE
+            /system/bin/iptables -w 5 -t nat -A PURE_NAT -o ccmni+ -j MASQUERADE
+            /system/bin/iptables -w 5 -t nat -A PURE_NAT -o pdp+ -j MASQUERADE
+            /system/bin/iptables -w 5 -t nat -D POSTROUTING -j PURE_NAT 2>/dev/null || true
+            /system/bin/iptables -w 5 -t nat -I POSTROUTING 1 -j PURE_NAT 2>/dev/null || true
+
+            /system/bin/ip6tables -w 5 -N PURE_FORWARD_V6 2>/dev/null || /system/bin/ip6tables -w 5 -F PURE_FORWARD_V6
+            /system/bin/ip6tables -w 5 -A PURE_FORWARD_V6 -m state --state ESTABLISHED,RELATED -j ACCEPT
+            /system/bin/ip6tables -w 5 -A PURE_FORWARD_V6 -i ap0 -j ACCEPT
+            /system/bin/ip6tables -w 5 -A PURE_FORWARD_V6 -i rndis+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A PURE_FORWARD_V6 -i usb+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A PURE_FORWARD_V6 -i eth+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A PURE_FORWARD_V6 -i swlan+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -A PURE_FORWARD_V6 -i wlan+ -j ACCEPT
+            /system/bin/ip6tables -w 5 -D FORWARD -j PURE_FORWARD_V6 2>/dev/null || true
+            /system/bin/ip6tables -w 5 -I FORWARD 1 -j PURE_FORWARD_V6 2>/dev/null || true
+
+            /system/bin/iptables -w 5 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+            /system/bin/iptables -w 5 -t mangle -I FORWARD 1 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+
+            sysctl -w net.ipv4.ip_forward=1 2>/dev/null || true
+            sysctl -w net.ipv4.conf.all.forwarding=1 2>/dev/null || true
+            sysctl -w net.ipv6.conf.all.forwarding=1 2>/dev/null || true
+            sysctl -w net.ipv4.conf.all.rp_filter=0 2>/dev/null || true
+            sysctl -w net.ipv4.conf.default.rp_filter=0 2>/dev/null || true
+            sysctl -w net.ipv4.tcp_slow_start_after_idle=0 2>/dev/null || true
+            sysctl -w net.core.netdev_max_backlog=10000 2>/dev/null || true
+            sysctl -w net.core.somaxconn=4096 2>/dev/null || true
+        fi
     fi
 
     # Function to maintain MTK Wi-Fi driver power and ap0 presence
@@ -191,6 +234,18 @@ MODDIR="${0%/*}"
                     iptables -I FORWARD 1 -i ap0 -j ACCEPT 2>/dev/null || true
                 iptables -C FORWARD -o ap0 -j ACCEPT 2>/dev/null || \
                     iptables -I FORWARD 1 -o ap0 -j ACCEPT 2>/dev/null || true
+            fi
+        fi
+
+        # Maintain Pure Direct Modem Passthrough (guarantee top position in FORWARD and POSTROUTING)
+        if [ -f "/data/local/virtualap/settings.conf" ]; then
+            if grep -q 'CFG_PURE_PASSTHROUGH="1"' /data/local/virtualap/settings.conf 2>/dev/null; then
+                if ! iptables -C FORWARD -j PURE_FORWARD 2>/dev/null; then
+                    iptables -w 2 -I FORWARD 1 -j PURE_FORWARD 2>/dev/null || true
+                fi
+                if ! iptables -t nat -C POSTROUTING -j PURE_NAT 2>/dev/null; then
+                    iptables -w 2 -t nat -I POSTROUTING 1 -j PURE_NAT 2>/dev/null || true
+                fi
             fi
         fi
 

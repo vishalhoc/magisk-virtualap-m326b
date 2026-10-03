@@ -7,16 +7,16 @@ LOG_FILE="/data/local/virtualap/logs/adb_debug.log"
 BUSYBOX="/data/adb/magisk/busybox"
 [ -x "$BUSYBOX" ] || BUSYBOX="busybox"
 
+UNIFIED_ADB_IP="192.168.42.1"
+
 load_config() {
     CFG_ADB_ENABLED="1"
     CFG_ADB_PORT="5555"
     CFG_ADB_STATIC_IPS="1"
     CFG_ADB_AUTO_AUTH="1"
-    CFG_AP0_STATIC_IP="192.168.42.1"
-    CFG_USB_STATIC_IP="192.168.44.1"
-    CFG_ETH_STATIC_IP="192.168.45.1"
-    CFG_HOTSPOT_STATIC_IP="192.168.43.1"
+    CFG_ADB_UNIFIED_IP="192.168.42.1"
     [ -f "$CONF_FILE" ] && . "$CONF_FILE" 2>/dev/null
+    [ -z "$CFG_ADB_UNIFIED_IP" ] && CFG_ADB_UNIFIED_IP="192.168.42.1"
 }
 
 save_config() {
@@ -26,29 +26,49 @@ CFG_ADB_ENABLED="${CFG_ADB_ENABLED:-1}"
 CFG_ADB_PORT="${CFG_ADB_PORT:-5555}"
 CFG_ADB_STATIC_IPS="${CFG_ADB_STATIC_IPS:-1}"
 CFG_ADB_AUTO_AUTH="${CFG_ADB_AUTO_AUTH:-1}"
-CFG_AP0_STATIC_IP="${CFG_AP0_STATIC_IP:-192.168.42.1}"
-CFG_USB_STATIC_IP="${CFG_USB_STATIC_IP:-192.168.44.1}"
-CFG_ETH_STATIC_IP="${CFG_ETH_STATIC_IP:-192.168.45.1}"
-CFG_HOTSPOT_STATIC_IP="${CFG_HOTSPOT_STATIC_IP:-192.168.43.1}"
+CFG_ADB_UNIFIED_IP="${CFG_ADB_UNIFIED_IP:-192.168.42.1}"
 EOF
 }
 
 apply_firewall() {
     PORT="${1:-5555}"
-    # Unblock INPUT chains for ADB TCP port across all interfaces
+    UNIFIED_IP="${CFG_ADB_UNIFIED_IP:-192.168.42.1}"
+
+    # 1. Bind unified IP alias to loopback (lo) so 192.168.42.1 is always locally routable
+    # without creating conflicting /24 subnet routes on downstream tethering adapters
+    if ! /system/bin/ip -4 addr show dev lo 2>/dev/null | grep -q "$UNIFIED_IP"; then
+        /system/bin/ip addr add "$UNIFIED_IP/32" dev lo 2>/dev/null || true
+    fi
+
+    # 2. Redirect incoming ADB TCP traffic on PREROUTING to local port
+    # Enables connecting to 192.168.42.1:5555 from any downstream network
+    iptables -w 2 -t nat -C PREROUTING -p tcp --dport "$PORT" -j REDIRECT --to-ports "$PORT" 2>/dev/null || \
+        iptables -w 2 -t nat -I PREROUTING 1 -p tcp --dport "$PORT" -j REDIRECT --to-ports "$PORT" 2>/dev/null || true
+
+    # 3. Unblock INPUT chains for ADB TCP port across all interfaces
     iptables -w 2 -C INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || \
         iptables -w 2 -I INPUT 1 -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
     iptables -w 2 -C tetherctrl_INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || \
         iptables -w 2 -I tetherctrl_INPUT 1 -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
     ip6tables -w 2 -C INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || \
         ip6tables -w 2 -I INPUT 1 -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
+
+    mkdir -p /data/local/virtualap/run 2>/dev/null || true
+    touch "/data/local/virtualap/run/adb_fw_${PORT}.ok" 2>/dev/null || true
 }
 
 remove_firewall() {
     PORT="${1:-5555}"
+    UNIFIED_IP="${CFG_ADB_UNIFIED_IP:-192.168.42.1}"
+    rm -f "/data/local/virtualap/run/adb_fw_${PORT}.ok" 2>/dev/null || true
+
+    iptables -w 2 -t nat -D PREROUTING -p tcp --dport "$PORT" -j REDIRECT --to-ports "$PORT" 2>/dev/null || true
     iptables -w 2 -D INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
     iptables -w 2 -D tetherctrl_INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
     ip6tables -w 2 -D INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null || true
+
+    # Remove lo alias safely
+    /system/bin/ip addr del "$UNIFIED_IP/32" dev lo 2>/dev/null || true
 }
 
 apply_auto_auth() {
@@ -76,7 +96,7 @@ apply_auto_auth() {
         chown system:shell /data/misc/adb/adb_keys 2>/dev/null || true
     elif [ -f /data/local/virtualap/adb_keys ]; then
         mkdir -p /data/misc/adb
-        cp -f /data/local/virtualap/adb_keys /data/misc/adb/adb_keys 2>/dev/null || true
+        cp -f /data/misc/adb/adb_keys /data/misc/adb/adb_keys 2>/dev/null || true
         chmod 0640 /data/misc/adb/adb_keys 2>/dev/null || true
         chown system:shell /data/misc/adb/adb_keys 2>/dev/null || true
     fi
@@ -85,38 +105,24 @@ apply_auto_auth() {
 maintain_downstream_ips() {
     load_config
     [ "$CFG_ADB_STATIC_IPS" = "1" ] || return 0
+    UNIFIED_IP="${CFG_ADB_UNIFIED_IP:-192.168.42.1}"
 
-    # 1. VirtualAP hardware ap0 (managed by start-ap; only assign if ap0 is up and completely unassigned)
+    # Ensure unified alias exists on loopback (lo)
+    if ! /system/bin/ip -4 addr show dev lo 2>/dev/null | grep -q "$UNIFIED_IP"; then
+        /system/bin/ip addr add "$UNIFIED_IP/32" dev lo 2>/dev/null || true
+    fi
+
+    # VirtualAP hardware ap0 (managed by start-ap; only assign if ap0 is up and completely unassigned)
     if [ -d "/sys/class/net/ap0" ] && ! pgrep -f "hostapd" >/dev/null 2>&1; then
-        AP_IP="${CFG_AP0_STATIC_IP:-192.168.42.1}"
-        if ! /system/bin/ip -4 addr show dev ap0 2>/dev/null | grep -q "$AP_IP"; then
-            /system/bin/ip addr add "$AP_IP/24" dev ap0 2>/dev/null || true
+        if ! /system/bin/ip -4 addr show dev ap0 2>/dev/null | grep -q "$UNIFIED_IP"; then
+            /system/bin/ip addr add "$UNIFIED_IP/24" dev ap0 2>/dev/null || true
         fi
     fi
 
-    # 2. USB Tethering (rndis0, usb0, ncm0)
-    for udev in rndis0 usb0 ncm0; do
-        if [ -d "/sys/class/net/$udev" ]; then
-            if /system/bin/ip link show "$udev" 2>/dev/null | grep -q "UP"; then
-                USB_IP="${CFG_USB_STATIC_IP:-192.168.44.1}"
-                if ! /system/bin/ip -4 addr show dev "$udev" 2>/dev/null | grep -q "$USB_IP"; then
-                    /system/bin/ip addr add "$USB_IP/24" dev "$udev" 2>/dev/null || true
-                fi
-            fi
-        fi
-    done
-
-    # 3. Ethernet Tethering (eth0, eth1, etc.)
-    for edev in /sys/class/net/eth* /sys/class/net/usb*; do
-        [ ! -d "$edev" ] && continue
-        ename="${edev##*/}"
-        if /system/bin/ip link show "$ename" 2>/dev/null | grep -q "UP"; then
-            ETH_IP="${CFG_ETH_STATIC_IP:-192.168.45.1}"
-            if ! /system/bin/ip -4 addr show dev "$ename" 2>/dev/null | grep -q "$ETH_IP"; then
-                /system/bin/ip addr add "$ETH_IP/24" dev "$ename" 2>/dev/null || true
-            fi
-        fi
-    done
+    # NOTE: We DO NOT inject secondary /24 subnets onto rndis0, usb0, or eth*!
+    # Android netd manages tethering DHCP/subnets natively. Injecting rogue /24 subnets
+    # caused ARP route collisions and severe downstream internet speed degradation.
+    # The unified 192.168.42.1:5555 is routed via lo + PREROUTING REDIRECT at full wire speed.
 }
 
 start_adb() {
@@ -170,13 +176,17 @@ maintain() {
         setprop ctl.restart adbd 2>/dev/null || true
     fi
 
-    # Ensure firewall rule is present (lightweight check)
-    apply_firewall "$PORT"
+    # Ensure firewall rule is present (cached check to avoid iptables xtables lock contention)
+    if [ ! -f "/data/local/virtualap/run/adb_fw_${PORT}.ok" ] || ! iptables -C INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null; then
+        apply_firewall "$PORT"
+    fi
+    maintain_downstream_ips
 }
 
 get_status_json() {
     load_config
     PORT="${CFG_ADB_PORT:-5555}"
+    UNIFIED_IP="${CFG_ADB_UNIFIED_IP:-192.168.42.1}"
     ENABLED=$([ "$CFG_ADB_ENABLED" = "1" ] && echo "true" || echo "false")
     STATIC_IPS=$([ "$CFG_ADB_STATIC_IPS" = "1" ] && echo "true" || echo "false")
     AUTO_AUTH=$([ "$CFG_ADB_AUTO_AUTH" = "1" ] && echo "true" || echo "false")
@@ -194,26 +204,26 @@ get_status_json() {
     DEBUGGABLE_VAL=$(getprop ro.debuggable)
     DEBUGGABLE=$([ "$DEBUGGABLE_VAL" = "1" ] && echo "true" || echo "false")
 
-    # Inspect downstream interface states and live IPs
+    # Inspect downstream interface states and live native IPs
     # 1. Virtual AP (ap0)
     AP0_STATE="DOWN"
-    AP0_IP="${CFG_AP0_STATIC_IP:-192.168.42.1}"
+    AP0_NATIVE="$UNIFIED_IP"
     if [ -d "/sys/class/net/ap0" ]; then
         /system/bin/ip link show ap0 2>/dev/null | grep -q "UP" && AP0_STATE="UP"
         CUR_IP=$(/system/bin/ip -4 -o addr show dev ap0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-        [ -n "$CUR_IP" ] && AP0_IP="$CUR_IP"
+        [ -n "$CUR_IP" ] && AP0_NATIVE="$CUR_IP"
     fi
 
     # 2. USB Tethering
     USB_DEV="rndis0"
     USB_STATE="DOWN"
-    USB_IP="${CFG_USB_STATIC_IP:-192.168.44.1}"
+    USB_NATIVE="$UNIFIED_IP"
     for u in rndis0 usb0 ncm0; do
         if [ -d "/sys/class/net/$u" ]; then
             USB_DEV="$u"
             /system/bin/ip link show "$u" 2>/dev/null | grep -q "UP" && USB_STATE="UP"
             CUR_IP=$(/system/bin/ip -4 -o addr show dev "$u" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-            [ -n "$CUR_IP" ] && USB_IP="$CUR_IP"
+            [ -n "$CUR_IP" ] && USB_NATIVE="$CUR_IP"
             break
         fi
     done
@@ -221,26 +231,26 @@ get_status_json() {
     # 3. Ethernet Tethering
     ETH_DEV="eth0"
     ETH_STATE="DOWN"
-    ETH_IP="${CFG_ETH_STATIC_IP:-192.168.45.1}"
+    ETH_NATIVE="$UNIFIED_IP"
     for e in /sys/class/net/eth* /sys/class/net/usb*; do
         [ ! -d "$e" ] && continue
         ETH_DEV="${e##*/}"
         /system/bin/ip link show "$ETH_DEV" 2>/dev/null | grep -q "UP" && ETH_STATE="UP"
         CUR_IP=$(/system/bin/ip -4 -o addr show dev "$ETH_DEV" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-        [ -n "$CUR_IP" ] && ETH_IP="$CUR_IP"
+        [ -n "$CUR_IP" ] && ETH_NATIVE="$CUR_IP"
         break
     done
 
     # 4. Standard Hotspot / Wi-Fi
     HS_DEV="wlan0"
     HS_STATE="DOWN"
-    HS_IP="${CFG_HOTSPOT_STATIC_IP:-192.168.43.1}"
+    HS_NATIVE="$UNIFIED_IP"
     for w in swlan0 wlan0; do
         if [ -d "/sys/class/net/$w" ]; then
             HS_DEV="$w"
             /system/bin/ip link show "$w" 2>/dev/null | grep -q "UP" && HS_STATE="UP"
             CUR_IP=$(/system/bin/ip -4 -o addr show dev "$w" 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -n1)
-            [ -n "$CUR_IP" ] && HS_IP="$CUR_IP"
+            [ -n "$CUR_IP" ] && HS_NATIVE="$CUR_IP"
             break
         fi
     done
@@ -250,6 +260,8 @@ get_status_json() {
     "success": true,
     "enabled": $ENABLED,
     "port": $PORT,
+    "unified_ip": "$UNIFIED_IP",
+    "unified_connect_cmd": "adb connect $UNIFIED_IP:$PORT",
     "listening": $LISTENING,
     "adbd_pid": "${ADBD_PID:-dead}",
     "secure": $SECURE,
@@ -260,34 +272,38 @@ get_status_json() {
         {
             "name": "Virtual AP (ap0)",
             "iface": "ap0",
-            "ip": "$AP0_IP",
+            "ip": "$UNIFIED_IP",
+            "native_ip": "$AP0_NATIVE",
             "port": $PORT,
             "state": "$AP0_STATE",
-            "connect_cmd": "adb connect $AP0_IP:$PORT"
+            "connect_cmd": "adb connect $UNIFIED_IP:$PORT"
         },
         {
             "name": "USB Tethering ($USB_DEV)",
             "iface": "$USB_DEV",
-            "ip": "$USB_IP",
+            "ip": "$UNIFIED_IP",
+            "native_ip": "$USB_NATIVE",
             "port": $PORT,
             "state": "$USB_STATE",
-            "connect_cmd": "adb connect $USB_IP:$PORT"
+            "connect_cmd": "adb connect $UNIFIED_IP:$PORT"
         },
         {
             "name": "USB Ethernet ($ETH_DEV)",
             "iface": "$ETH_DEV",
-            "ip": "$ETH_IP",
+            "ip": "$UNIFIED_IP",
+            "native_ip": "$ETH_NATIVE",
             "port": $PORT,
             "state": "$ETH_STATE",
-            "connect_cmd": "adb connect $ETH_IP:$PORT"
+            "connect_cmd": "adb connect $UNIFIED_IP:$PORT"
         },
         {
             "name": "Wi-Fi Hotspot ($HS_DEV)",
             "iface": "$HS_DEV",
-            "ip": "$HS_IP",
+            "ip": "$UNIFIED_IP",
+            "native_ip": "$HS_NATIVE",
             "port": $PORT,
             "state": "$HS_STATE",
-            "connect_cmd": "adb connect $HS_IP:$PORT"
+            "connect_cmd": "adb connect $UNIFIED_IP:$PORT"
         }
     ]
 }

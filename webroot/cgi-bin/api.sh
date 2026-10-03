@@ -1051,11 +1051,18 @@ EOF
         [ -z "$CFG_PROVISIONING_SHIELD" ] && CFG_PROVISIONING_SHIELD="1"
         [ -z "$CFG_DEDICATED_ROUTER" ] && CFG_DEDICATED_ROUTER="0"
         [ -z "$CFG_NATIVE_MODE" ] && CFG_NATIVE_MODE="0"
+        [ -z "$CFG_PURE_PASSTHROUGH" ] && CFG_PURE_PASSTHROUGH="0"
 
         # Check real-time iptables and system status
         ROUTER_ACTIVE="false"
         if /system/bin/iptables -w 2 -L OUTPUT -n 2>/dev/null | grep -q "DEDICATED_ROUTER_OUT"; then
             ROUTER_ACTIVE="true"
+        fi
+
+        # Check Pure Direct Modem Passthrough status
+        LIVE_PURE_PASSTHROUGH="false"
+        if /system/bin/iptables -w 2 -L FORWARD -n 2>/dev/null | grep -q "PURE_FORWARD"; then
+            LIVE_PURE_PASSTHROUGH="true"
         fi
 
         # Check real-time status of each vector
@@ -1101,6 +1108,7 @@ EOF
         cat <<EOF
 {
     "carrier_bypass": $BYPASS_ACTIVE,
+    "pure_passthrough": $LIVE_PURE_PASSTHROUGH,
     "target_ttl": $CFG_TARGET_TTL,
     "current_sys_ttl": $CUR_SYS_TTL,
     "ttl_bypass": $LIVE_TTL_BYPASS,
@@ -1222,6 +1230,77 @@ EOF
                     MSG="Platform Tether Provisioning Shield disabled"
                 fi
                 ;;
+            pure|pure_passthrough)
+                CFG_PURE_PASSTHROUGH="$IS_ON"
+                if [ "$IS_ON" = "1" ]; then
+                    # 1. Direct forwarding chain: wire-speed ACCEPT bypassing ALL Android filter & quota chains
+                    /system/bin/iptables -w 2 -N PURE_FORWARD 2>/dev/null || /system/bin/iptables -w 2 -F PURE_FORWARD
+                    /system/bin/iptables -w 2 -A PURE_FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+                    /system/bin/iptables -w 2 -A PURE_FORWARD -i ap0 -j ACCEPT
+                    /system/bin/iptables -w 2 -A PURE_FORWARD -i rndis+ -j ACCEPT
+                    /system/bin/iptables -w 2 -A PURE_FORWARD -i usb+ -j ACCEPT
+                    /system/bin/iptables -w 2 -A PURE_FORWARD -i eth+ -j ACCEPT
+                    /system/bin/iptables -w 2 -A PURE_FORWARD -i swlan+ -j ACCEPT
+                    /system/bin/iptables -w 2 -A PURE_FORWARD -i wlan+ -j ACCEPT
+                    /system/bin/iptables -w 2 -D FORWARD -j PURE_FORWARD 2>/dev/null || true
+                    /system/bin/iptables -w 2 -I FORWARD 1 -j PURE_FORWARD 2>/dev/null || true
+
+                    # 2. Direct cellular modem NAT masquerade at top of POSTROUTING
+                    /system/bin/iptables -w 2 -t nat -N PURE_NAT 2>/dev/null || /system/bin/iptables -w 2 -t nat -F PURE_NAT
+                    /system/bin/iptables -w 2 -t nat -A PURE_NAT -o rmnet+ -j MASQUERADE
+                    /system/bin/iptables -w 2 -t nat -A PURE_NAT -o v4-rmnet+ -j MASQUERADE
+                    /system/bin/iptables -w 2 -t nat -A PURE_NAT -o ccmni+ -j MASQUERADE
+                    /system/bin/iptables -w 2 -t nat -A PURE_NAT -o pdp+ -j MASQUERADE
+                    /system/bin/iptables -w 2 -t nat -D POSTROUTING -j PURE_NAT 2>/dev/null || true
+                    /system/bin/iptables -w 2 -t nat -I POSTROUTING 1 -j PURE_NAT 2>/dev/null || true
+
+                    # 3. IPv6 Forwarding passthrough
+                    /system/bin/ip6tables -w 2 -N PURE_FORWARD_V6 2>/dev/null || /system/bin/ip6tables -w 2 -F PURE_FORWARD_V6
+                    /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -m state --state ESTABLISHED,RELATED -j ACCEPT
+                    /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i ap0 -j ACCEPT
+                    /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i rndis+ -j ACCEPT
+                    /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i usb+ -j ACCEPT
+                    /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i eth+ -j ACCEPT
+                    /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i swlan+ -j ACCEPT
+                    /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i wlan+ -j ACCEPT
+                    /system/bin/ip6tables -w 2 -D FORWARD -j PURE_FORWARD_V6 2>/dev/null || true
+                    /system/bin/ip6tables -w 2 -I FORWARD 1 -j PURE_FORWARD_V6 2>/dev/null || true
+
+                    # 4. TCP MSS PMTU clamping
+                    /system/bin/iptables -w 2 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+                    /system/bin/iptables -w 2 -t mangle -I FORWARD 1 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+
+                    # 5. Kernel wire-speed forwarding optimizations
+                    sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+                    sysctl -w net.ipv4.conf.all.forwarding=1 >/dev/null 2>&1 || true
+                    sysctl -w net.ipv6.conf.all.forwarding=1 >/dev/null 2>&1 || true
+                    sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null 2>&1 || true
+                    sysctl -w net.ipv4.conf.default.rp_filter=0 >/dev/null 2>&1 || true
+                    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 >/dev/null 2>&1 || true
+                    sysctl -w net.core.netdev_max_backlog=10000 >/dev/null 2>&1 || true
+                    sysctl -w net.core.somaxconn=4096 >/dev/null 2>&1 || true
+
+                    # 6. Ensure carrier DUN checks and entitlement queries don't throttle
+                    settings put global tether_dun_required 0 2>/dev/null || true
+                    settings put global tether_entitlement_check_state 0 2>/dev/null || true
+
+                    MSG="Pure Direct Passthrough ENABLED: Cellular WAN routed directly to downstream clients without filters or inspection"
+                else
+                    /system/bin/iptables -w 2 -D FORWARD -j PURE_FORWARD 2>/dev/null || true
+                    /system/bin/iptables -w 2 -F PURE_FORWARD 2>/dev/null || true
+                    /system/bin/iptables -w 2 -X PURE_FORWARD 2>/dev/null || true
+
+                    /system/bin/iptables -w 2 -t nat -D POSTROUTING -j PURE_NAT 2>/dev/null || true
+                    /system/bin/iptables -w 2 -t nat -F PURE_NAT 2>/dev/null || true
+                    /system/bin/iptables -w 2 -t nat -X PURE_NAT 2>/dev/null || true
+
+                    /system/bin/ip6tables -w 2 -D FORWARD -j PURE_FORWARD_V6 2>/dev/null || true
+                    /system/bin/ip6tables -w 2 -F PURE_FORWARD_V6 2>/dev/null || true
+                    /system/bin/ip6tables -w 2 -X PURE_FORWARD_V6 2>/dev/null || true
+
+                    MSG="Pure Direct Passthrough disabled: Android netfilter chains restored"
+                fi
+                ;;
             *)
                 echo "{\"success\": false, \"error\": \"Unknown method: $METHOD\"}"
                 exit 0
@@ -1239,6 +1318,7 @@ CFG_DNS_PROTECT="$CFG_DNS_PROTECT"
 CFG_IPV6_PROTECT="$CFG_IPV6_PROTECT"
 CFG_BPF_OFFLOAD_DISABLED="$CFG_BPF_OFFLOAD_DISABLED"
 CFG_PROVISIONING_SHIELD="$CFG_PROVISIONING_SHIELD"
+CFG_PURE_PASSTHROUGH="$CFG_PURE_PASSTHROUGH"
 EOF
         echo "{\"success\": true, \"method\": \"$METHOD\", \"enabled\": $([ "$IS_ON" = "1" ] && echo "true" || echo "false"), \"message\": \"$MSG\"}"
         ;;
@@ -1419,6 +1499,100 @@ EOF
         fi
         ;;
 
+    settings_toggle_pure_passthrough|toggle_pure_passthrough)
+        ENABLE=$(get_param "enable" "1")
+        SETTINGS_CONF="/data/local/virtualap/settings.conf"
+        [ -f "$SETTINGS_CONF" ] && . "$SETTINGS_CONF"
+        
+        IS_ON="0"
+        [ "$ENABLE" = "1" ] || [ "$ENABLE" = "true" ] && IS_ON="1"
+        CFG_PURE_PASSTHROUGH="$IS_ON"
+        
+        if [ "$IS_ON" = "1" ]; then
+            # 1. Forward chain: Direct wire-speed acceptance bypassing ALL Android filter & quota chains
+            /system/bin/iptables -w 2 -N PURE_FORWARD 2>/dev/null || /system/bin/iptables -w 2 -F PURE_FORWARD
+            /system/bin/iptables -w 2 -A PURE_FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+            /system/bin/iptables -w 2 -A PURE_FORWARD -i ap0 -j ACCEPT
+            /system/bin/iptables -w 2 -A PURE_FORWARD -i rndis+ -j ACCEPT
+            /system/bin/iptables -w 2 -A PURE_FORWARD -i usb+ -j ACCEPT
+            /system/bin/iptables -w 2 -A PURE_FORWARD -i eth+ -j ACCEPT
+            /system/bin/iptables -w 2 -A PURE_FORWARD -i swlan+ -j ACCEPT
+            /system/bin/iptables -w 2 -A PURE_FORWARD -i wlan+ -j ACCEPT
+            /system/bin/iptables -w 2 -D FORWARD -j PURE_FORWARD 2>/dev/null || true
+            /system/bin/iptables -w 2 -I FORWARD 1 -j PURE_FORWARD 2>/dev/null || true
+
+            # 2. Direct cellular modem NAT masquerade at top of POSTROUTING
+            /system/bin/iptables -w 2 -t nat -N PURE_NAT 2>/dev/null || /system/bin/iptables -w 2 -t nat -F PURE_NAT
+            /system/bin/iptables -w 2 -t nat -A PURE_NAT -o rmnet+ -j MASQUERADE
+            /system/bin/iptables -w 2 -t nat -A PURE_NAT -o v4-rmnet+ -j MASQUERADE
+            /system/bin/iptables -w 2 -t nat -A PURE_NAT -o ccmni+ -j MASQUERADE
+            /system/bin/iptables -w 2 -t nat -A PURE_NAT -o pdp+ -j MASQUERADE
+            /system/bin/iptables -w 2 -t nat -D POSTROUTING -j PURE_NAT 2>/dev/null || true
+            /system/bin/iptables -w 2 -t nat -I POSTROUTING 1 -j PURE_NAT 2>/dev/null || true
+
+            # 3. IPv6 Forwarding passthrough
+            /system/bin/ip6tables -w 2 -N PURE_FORWARD_V6 2>/dev/null || /system/bin/ip6tables -w 2 -F PURE_FORWARD_V6
+            /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -m state --state ESTABLISHED,RELATED -j ACCEPT
+            /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i ap0 -j ACCEPT
+            /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i rndis+ -j ACCEPT
+            /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i usb+ -j ACCEPT
+            /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i eth+ -j ACCEPT
+            /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i swlan+ -j ACCEPT
+            /system/bin/ip6tables -w 2 -A PURE_FORWARD_V6 -i wlan+ -j ACCEPT
+            /system/bin/ip6tables -w 2 -D FORWARD -j PURE_FORWARD_V6 2>/dev/null || true
+            /system/bin/ip6tables -w 2 -I FORWARD 1 -j PURE_FORWARD_V6 2>/dev/null || true
+
+            # 4. TCP MSS PMTU clamping
+            /system/bin/iptables -w 2 -t mangle -D FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+            /system/bin/iptables -w 2 -t mangle -I FORWARD 1 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || true
+
+            # 5. Kernel wire-speed forwarding optimizations
+            sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
+            sysctl -w net.ipv4.conf.all.forwarding=1 >/dev/null 2>&1 || true
+            sysctl -w net.ipv6.conf.all.forwarding=1 >/dev/null 2>&1 || true
+            sysctl -w net.ipv4.conf.all.rp_filter=0 >/dev/null 2>&1 || true
+            sysctl -w net.ipv4.conf.default.rp_filter=0 >/dev/null 2>&1 || true
+            sysctl -w net.ipv4.tcp_slow_start_after_idle=0 >/dev/null 2>&1 || true
+            sysctl -w net.core.netdev_max_backlog=10000 >/dev/null 2>&1 || true
+            sysctl -w net.core.somaxconn=4096 >/dev/null 2>&1 || true
+
+            # 6. Ensure carrier DUN checks and entitlement queries don't throttle
+            settings put global tether_dun_required 0 2>/dev/null || true
+            settings put global tether_entitlement_check_state 0 2>/dev/null || true
+
+            MSG="Pure Direct Passthrough ENABLED: Cellular WAN routed directly to downstream clients without filters or inspection"
+        else
+            /system/bin/iptables -w 2 -D FORWARD -j PURE_FORWARD 2>/dev/null || true
+            /system/bin/iptables -w 2 -F PURE_FORWARD 2>/dev/null || true
+            /system/bin/iptables -w 2 -X PURE_FORWARD 2>/dev/null || true
+
+            /system/bin/iptables -w 2 -t nat -D POSTROUTING -j PURE_NAT 2>/dev/null || true
+            /system/bin/iptables -w 2 -t nat -F PURE_NAT 2>/dev/null || true
+            /system/bin/iptables -w 2 -t nat -X PURE_NAT 2>/dev/null || true
+
+            /system/bin/ip6tables -w 2 -D FORWARD -j PURE_FORWARD_V6 2>/dev/null || true
+            /system/bin/ip6tables -w 2 -F PURE_FORWARD_V6 2>/dev/null || true
+            /system/bin/ip6tables -w 2 -X PURE_FORWARD_V6 2>/dev/null || true
+
+            MSG="Pure Direct Passthrough disabled: Android netfilter chains restored"
+        fi
+
+        # Save to settings.conf
+        cat <<EOF > "$SETTINGS_CONF"
+CFG_CARRIER_BYPASS="${CFG_CARRIER_BYPASS:-0}"
+CFG_TARGET_TTL="${CFG_TARGET_TTL:-64}"
+CFG_TTL_BYPASS="${CFG_TTL_BYPASS:-1}"
+CFG_DUN_BYPASS="${CFG_DUN_BYPASS:-1}"
+CFG_MSS_CLAMP="${CFG_MSS_CLAMP:-1}"
+CFG_DNS_PROTECT="${CFG_DNS_PROTECT:-1}"
+CFG_IPV6_PROTECT="${CFG_IPV6_PROTECT:-1}"
+CFG_BPF_OFFLOAD_DISABLED="${CFG_BPF_OFFLOAD_DISABLED:-1}"
+CFG_PROVISIONING_SHIELD="${CFG_PROVISIONING_SHIELD:-1}"
+CFG_PURE_PASSTHROUGH="$CFG_PURE_PASSTHROUGH"
+EOF
+        echo "{\"success\": true, \"pure_passthrough\": $([ "$IS_ON" = "1" ] && echo "true" || echo "false"), \"message\": \"$MSG\"}"
+        ;;
+
     set_upstream)
         MODE=$(get_param "mode" "vap")
         UPSTREAM=$(get_param "upstream" "auto")
@@ -1530,7 +1704,7 @@ EOF
         ;;
 
     module_check_update)
-        CURRENT_VER="v3.1"
+        CURRENT_VER="v3.2"
         [ -f "/data/adb/modules/virtualap_m326b_fix/module.prop" ] && \
             CURRENT_VER=$(grep "^version=" /data/adb/modules/virtualap_m326b_fix/module.prop | cut -d= -f2 | tr -d '\r\n')
         

@@ -855,6 +855,52 @@
                 </div>
             </div>
 
+            <!-- Card: Pure Direct Modem Passthrough (Filterless Internet) -->
+            <div class="card" style="margin-bottom:16px; border:1px solid rgba(16, 185, 129, 0.4); background:linear-gradient(180deg, rgba(16, 185, 129, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%);">
+                <div class="card-title">
+                    <span>⚡ Pure Direct Modem Passthrough (Filterless WAN)</span>
+                    <div id="purePassthroughStatusBadge" class="status-badge stopped">
+                        <span class="dot"></span>
+                        <span id="purePassthroughStatusText">DISABLED</span>
+                    </div>
+                </div>
+
+                <div class="switch-row" style="background:#090d16; padding:12px 14px; border-radius:8px; margin-bottom:14px; border:1px solid #1e293b;">
+                    <div class="switch-info">
+                        <div class="switch-title" style="color:var(--accent-green); font-weight:700; font-size:1rem;">🚀 Wire-Speed Raw Modem-to-Tether Forwarding</div>
+                        <div class="switch-desc">Routes cellular modem (5G/4G) internet directly to tethering clients (Wi-Fi Hotspot, USB, Ethernet, Virtual AP) without ANY Android netfilter inspection, bw_FORWARD quota tracking, DPI, or packet throttling.</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="chkPurePassthrough" onchange="togglePurePassthrough(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div style="font-size:0.82rem; color:#cbd5e1; line-height:1.6; margin-bottom:12px;">
+                    Standard Android tethering forces every packet through multiple CPU-intensive netfilter chains (<code>bw_FORWARD</code>, <code>tetherctrl_FORWARD</code>, <code>idletimer_mangle</code>, and eBPF policing) which inspects, tallies, and throttles throughput. 
+                    <b>Pure Direct Passthrough</b> installs top-priority kernel forwarding rules (Rule #1 in <code>FORWARD</code> and <code>POSTROUTING</code>) to stream packets directly between the cellular modem hardware and tethering downstream clients at maximum line speed with zero packet overhead.
+                </div>
+
+                <div class="grid-2" style="gap:10px; margin-bottom:0;">
+                    <div class="stat-row" style="background:#050811; padding:8px 12px; border-radius:6px; border:1px solid #1e293b;">
+                        <span class="stat-label">Netfilter Inspection</span>
+                        <span class="stat-val" style="color:var(--accent-green);">100% BYPASSED</span>
+                    </div>
+                    <div class="stat-row" style="background:#050811; padding:8px 12px; border-radius:6px; border:1px solid #1e293b;">
+                        <span class="stat-label">Forwarding Chains</span>
+                        <span class="stat-val" style="color:var(--accent-cyan);">Top Priority Wire-Speed</span>
+                    </div>
+                    <div class="stat-row" style="background:#050811; padding:8px 12px; border-radius:6px; border:1px solid #1e293b;">
+                        <span class="stat-label">NAT Masquerade</span>
+                        <span class="stat-val" style="color:var(--accent-green);">Direct Modem Hardware</span>
+                    </div>
+                    <div class="stat-row" style="background:#050811; padding:8px 12px; border-radius:6px; border:1px solid #1e293b;">
+                        <span class="stat-label">TCP MSS Optimization</span>
+                        <span class="stat-val" style="color:var(--accent-amber);">PMTU Auto-Clamped</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid-2">
                 <!-- Card 2: Dedicated Router Mode (100% Data to Tethering) -->
                 <div class="card">
@@ -909,7 +955,7 @@
                         Download & install official releases directly from GitHub repository <code>vishalhoc/magisk-virtualap-m326b</code> via live Magisk installation engine.
                     </p>
                     <div style="font-size:0.8rem; margin-bottom:12px;">
-                        <div class="stat-row"><span class="stat-label">Installed Version</span><span class="stat-val" id="lblCurVer" style="color:var(--accent-cyan); font-weight:700;">v3.1 (310)</span></div>
+                        <div class="stat-row"><span class="stat-label">Installed Version</span><span class="stat-val" id="lblCurVer" style="color:var(--accent-cyan); font-weight:700;">v3.2 (320)</span></div>
                         <div class="stat-row"><span class="stat-label">Latest GitHub Release</span><span class="stat-val" id="lblLatestVer">-</span></div>
                         <div class="stat-row"><span class="stat-label">Release Title</span><span class="stat-val" id="lblReleaseTitle">-</span></div>
                         <div class="stat-row"><span class="stat-label">Release Date</span><span class="stat-val" id="lblReleaseDate">-</span></div>
@@ -1056,7 +1102,7 @@
             <!-- Notice Banner -->
             <div class="info-box" style="background:rgba(56, 189, 248, 0.08); border-color:rgba(56, 189, 248, 0.3);">
                 <h4>⚡ Downstream Network ADB & Root Shell Controller</h4>
-                Auto-enables ADB debugging across <b>all downstream and tethered networks</b> (Virtual AP <code>ap0</code>, USB Tethering, USB Ethernet, and Mobile Hotspot). Guarantees static IP & port persistence, unblocks firewall rules, and eliminates RSA pairing barriers so debugging works seamlessly with full Magisk root access just like USB debugging.
+                Auto-enables ADB debugging across <b>all downstream and tethered networks</b> with a <b>Unified Address (192.168.42.1) & Port (5555)</b> (Virtual AP <code>ap0</code>, USB Tethering, USB Ethernet, and Mobile Hotspot). Guarantees identical IP & port persistence across every port without route collision or internet degradation, unblocks firewall rules, and eliminates RSA pairing barriers so debugging works seamlessly with full Magisk root access.
             </div>
 
             <!-- Master Control Card -->
@@ -1072,7 +1118,7 @@
                 <div class="switch-row">
                     <div class="switch-info">
                         <div class="switch-title" style="color:var(--accent-cyan); font-weight:700;">Auto-Enable Downstream ADB Debugging</div>
-                        <div class="switch-desc">Listens on TCP across all downstream interfaces. Background watchdog auto-rebinds if disconnected or network changes.</div>
+                        <div class="switch-desc">Listens on TCP across all downstream interfaces on unified address <code>192.168.42.1</code>. Background watchdog auto-rebinds if disconnected or network changes.</div>
                     </div>
                     <label class="toggle-switch">
                         <input type="checkbox" id="chkAdbMaster" onchange="toggleAdbMaster(this.checked)">
@@ -1105,8 +1151,8 @@
                         </div>
                         <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
                             <div>
-                                <label style="margin-bottom:2px;">Downstream Static IPs</label>
-                                <div style="font-size:0.75rem; color:var(--text-muted);">Enforces fixed gateway IPs on tether interfaces</div>
+                                <label style="margin-bottom:2px;">Unified Gateway Alias</label>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">Standardizes 192.168.42.1 entry across all tether ports</div>
                             </div>
                             <label class="toggle-switch" style="margin-left:10px;">
                                 <input type="checkbox" id="chkAdbStaticIps" onchange="toggleAdbStaticIps(this.checked)">
@@ -1126,11 +1172,11 @@
             <!-- Downstream Endpoints Card -->
             <div class="card">
                 <div class="card-title">
-                    <span>📡 Downstream Endpoints & 1-Click Connect Commands</span>
+                    <span>📡 Downstream Endpoints & Unified 1-Click Connect Commands</span>
                     <button class="btn-refresh" onclick="fetchAdbStatus(true)">🔄 Refresh Endpoints</button>
                 </div>
                 <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:14px;">
-                    Connect your computer or another device to any downstream network below, then click <b>Copy Command</b> and paste it into your terminal:
+                    All downstream connections share the unified address <b>192.168.42.1:5555</b>. Connect your computer to any downstream network below, then click <b>Copy Command</b> and paste it into your terminal:
                 </p>
 
                 <div id="adbEndpointsContainer" class="grid-2">
@@ -1163,7 +1209,7 @@
 
         <!-- Footer Branding -->
         <footer style="margin-top:24px; padding:16px 0; border-top:1px solid var(--border); text-align:center; font-size:0.8rem; color:var(--text-muted);">
-            Created by <b style="color:var(--accent-cyan);">hoc</b> | VirtualAP & Connectivity Hub v3.0 | Samsung Galaxy M32 5G (MT6853)
+            Created by <b style="color:var(--accent-cyan);">hoc</b> | VirtualAP & Connectivity Hub v3.2 | Samsung Galaxy M32 5G (MT6853)
         </footer>
     </div>
 
@@ -1798,6 +1844,21 @@
                     chkMaster.checked = false;
                 }
 
+                // Pure Direct Modem Passthrough badge & checkbox
+                const pBadge = document.getElementById('purePassthroughStatusBadge');
+                const pTxt = document.getElementById('purePassthroughStatusText');
+                const chkPure = document.getElementById('chkPurePassthrough');
+                if (chkPure) chkPure.checked = !!d.pure_passthrough;
+                if (pBadge && pTxt) {
+                    if (d.pure_passthrough) {
+                        pBadge.className = 'status-badge active';
+                        pTxt.innerText = 'ACTIVE (FILTERLESS)';
+                    } else {
+                        pBadge.className = 'status-badge stopped';
+                        pTxt.innerText = 'DISABLED';
+                    }
+                }
+
                 // Individual Method Toggles
                 if (document.getElementById('chkMethodTtl')) document.getElementById('chkMethodTtl').checked = !!d.ttl_bypass;
                 if (document.getElementById('chkMethodDun')) document.getElementById('chkMethodDun').checked = !!d.dun_bypass;
@@ -1987,6 +2048,18 @@
                 fetchSettingsStatus();
             } catch(e) {
                 showToast('❌ Failed to toggle dedicated router: ' + e);
+            }
+        }
+
+        async function togglePurePassthrough(enable) {
+            showToast(enable ? '🚀 Activating Pure Direct Passthrough...' : 'Disabling Pure Passthrough...');
+            try {
+                const res = await fetch(`/cgi-bin/api.sh?action=toggle_pure_passthrough&enable=${enable ? '1' : '0'}&_t=${Date.now()}`);
+                const d = await res.json();
+                showToast(d.message || (enable ? '✅ Pure Passthrough Active' : 'Pure Passthrough Disabled'));
+                fetchSettingsStatus();
+            } catch(e) {
+                showToast('❌ Failed to toggle pure passthrough: ' + e);
             }
         }
 
@@ -2232,16 +2305,17 @@
                     </div>
                     <div class="stat-row">
                         <span class="stat-label">Interface</span>
-                        <span class="stat-val" style="color:var(--accent-cyan);">${ep.iface}</span>
+                        <span class="stat-val" style="color:var(--accent-cyan); font-weight:600;">${ep.iface}</span>
                     </div>
                     <div class="stat-row">
-                        <span class="stat-label">Assigned Static IP</span>
-                        <span class="stat-val" style="color:#fff;">${ep.ip}</span>
+                        <span class="stat-label">Unified ADB Address</span>
+                        <span class="stat-val" style="color:var(--accent-green); font-weight:700; font-size:0.95rem;">${ep.ip}:${port}</span>
                     </div>
+                    ${ep.native_ip && ep.native_ip !== ep.ip ? `
                     <div class="stat-row">
-                        <span class="stat-label">ADB Endpoint</span>
-                        <span class="stat-val" style="color:var(--accent-green); font-size:0.9rem;">${ep.ip}:${port}</span>
-                    </div>
+                        <span class="stat-label">Interface Gateway</span>
+                        <span class="stat-val" style="color:#94a3b8; font-size:0.8rem;">${ep.native_ip} (port ${port} also open)</span>
+                    </div>` : ''}
                     <div style="margin-top:12px; display:flex; gap:8px;">
                         <input type="text" readonly value="${ep.connect_cmd}" style="font-size:0.75rem; padding:6px 10px; font-family:ui-monospace, monospace; background:#050811; border-color:var(--border);" onclick="this.select()">
                         <button class="btn-ctrl" onclick="copyCommand('${ep.connect_cmd}')" style="padding:6px 12px; font-size:0.75rem; white-space:nowrap; background:#1e293b; color:var(--accent-cyan); border:1px solid var(--border-focus);">

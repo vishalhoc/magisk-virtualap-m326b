@@ -3,14 +3,39 @@
 
 [![Magisk](https://img.shields.io/badge/Magisk-v24.0+-brightgreen.svg)](https://github.com/topjohnwu/Magisk)
 [![SoC](https://img.shields.io/badge/MediaTek-MT6853%20Dimensity%20720-blue.svg)](https://www.mediatek.com)
-[![Version](https://img.shields.io/badge/Version-v3.1-orange.svg)](#version-31-features)
+[![Version](https://img.shields.io/badge/Version-v3.2-orange.svg)](#version-32-features)
 [![WebUI](https://img.shields.io/badge/Control%20Panel-Web%20CGI%20Portal-red.svg)](#web-control-panel)
 
-A complete systemless Magisk module created by **hoc** providing concurrent **Virtual AP (`ap0`)**, **Multi-Vector Hotspot Detection Engine**, **Modular Carrier Hotspot Anti-Detection Suite (Individual Toggles)**, **1-Click In-App GitHub Module Updater**, **Downstream Network ADB & Root Controller**, **Dedicated Router Mode**, and multi-interface connectivity management with an integrated Web Control Panel on port 8088 for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
+A complete systemless Magisk module created by **hoc** providing concurrent **Virtual AP (`ap0`)**, **Unified Downstream Network ADB Controller (192.168.42.1:5555)**, **Pure Direct Modem Passthrough (Filterless Wire-Speed WAN)**, **Multi-Vector Hotspot Detection Engine**, **Modular Carrier Hotspot Anti-Detection Suite**, **1-Click In-App GitHub Module Updater**, and multi-interface connectivity management with an integrated Web Control Panel on port 8088 for Samsung Galaxy M32 5G (`SM-M326B`, MediaTek Dimensity 720 / MT6853).
 
 ---
 
-## 🌟 What's New in v3.1
+## 🌟 What's New in v3.2
+
+### 🎯 Unified ADB Address & Port Across ALL Downstream Interfaces (`192.168.42.1:5555`)
+- Standardized single entry point: `192.168.42.1:5555` across all tethering adapters (Virtual AP `ap0`, USB Tethering `rndis0`, USB Ethernet `eth0`, and Mobile Hotspot `swlan0`).
+- No need to remember or copy different static IPs for different adapters.
+- 1-Click connect command:
+  ```bash
+  adb connect 192.168.42.1:5555
+  ```
+
+### 🚀 Resolved Downstream Internet Speed Degradation When ADB is Enabled
+- **Root Cause Fixed:** Eliminated secondary `/24` subnet injections (`ip addr add $USB_IP/24 dev rndis0`) that conflicted with Android's native `netd` tethering DHCP subnets.
+- Replaced with a unified `192.168.42.1/32` loopback (`lo`) alias and iptables PREROUTING `REDIRECT --to-ports 5555`, preserving pristine routing tables and eliminating packet loops.
+- Cached firewall verification to prevent high-frequency kernel `xtables` lock contention in background loops.
+
+### ⚡ Pure Direct Modem Passthrough (Filterless Wire-Speed Internet)
+- Dedicated toggle and engine routing cellular modem internet (`rmnet+`, `v4-rmnet+`, `ccmni+`, `pdp+`) directly to downstream clients with **zero intermediate filters**:
+  - **Rule #1 FORWARD Bypass:** Immediate kernel ACCEPT for downstream and return traffic, completely bypassing `bw_FORWARD` quota enforcement, `tetherctrl_FORWARD`, and Doze firewall chains.
+  - **Direct Top-Priority NAT Masquerade:** Rule #1 in `nat` `POSTROUTING` directly to cellular WAN interfaces.
+  - **PMTU TCP MSS Auto-Clamping:** Automatically prevents cellular packet fragmentation.
+  - **Kernel Wire-Speed Forwarding:** Maximize `netdev_max_backlog` to 10,000 packets and eliminate reverse path drops.
+  - Dedicated Web Control Panel switch and live status badge: **`ACTIVE (FILTERLESS)`** in Tab 5.
+
+---
+
+## 🌟 Previous Features in v3.1
 
 ### 📡 Multi-Vector Advanced Hotspot Detection Engine
 - **4-Vector Live Telemetry:** Evaluates hotspot state across:

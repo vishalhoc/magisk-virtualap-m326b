@@ -1,9 +1,9 @@
 id=virtualap_m326b_fix
 name=VirtualAP Fix & Web Control Panel (M32 5G)
-version=v3.1
-versionCode=310
+version=v3.2
+versionCode=320
 author=hoc
-description=Created by hoc. VirtualAP & Connectivity Hub for Galaxy M32 5G (Dimensity 720). Hardware ap0 fix, Patched MTK hostapd, Multi-Vector Hotspot Detection Engine, Modular Carrier Hotspot Bypass with individual method toggles (TTL, DUN, MSS, DNS, IPv6, BPF, Provisioning), 1-Click In-App GitHub Module Updater, and Dedicated Router Mode.
+description=Created by hoc. VirtualAP & Connectivity Hub for Galaxy M32 5G (Dimensity 720). Hardware ap0 fix, Patched MTK hostapd, Unified Downstream ADB (192.168.42.1:5555 across all ports without route collision), Pure Direct Modem Passthrough (Filterless wire-speed WAN), Multi-Vector Hotspot Detection Engine, and Modular Carrier Bypass Suite.
 actionTitle=Open Connectivity Hub
 web=true
 updateJson=https://raw.githubusercontent.com/vishalhoc/magisk-virtualap-m326b/main/update.json
