@@ -213,14 +213,15 @@ MODDIR="${0%/*}"
             fi
         fi
 
-        # Maintain Dynamic Upstream Routing for Virtual AP (ap0)
+        # Maintain Dynamic Upstream Routing for Virtual AP (ap0) and Samsung SoftAP (swlan0)
         # Prevents internet from dying on connected devices when cellular re-indexes (e.g. v4-rmnet0 <-> v4-rmnet10)
-        if [ -d "/sys/class/net/ap0" ] && pgrep -f "hostapd" >/dev/null 2>&1; then
-            ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev v4-rmnet' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
-            [ -z "$ACTIVE_WAN_TBL" ] && ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev rmnet' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
-            [ -z "$ACTIVE_WAN_TBL" ] && ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev wlan' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
+        ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev v4-rmnet' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
+        [ -z "$ACTIVE_WAN_TBL" ] && ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev rmnet' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
+        [ -z "$ACTIVE_WAN_TBL" ] && ACTIVE_WAN_TBL=$(ip route show table all 2>/dev/null | grep -E '^default.*dev wlan' | sed -n 's/.*table \([^ ]*\).*/\1/p' | head -n1)
 
-            if [ -n "$ACTIVE_WAN_TBL" ]; then
+        if [ -n "$ACTIVE_WAN_TBL" ]; then
+            # 1. Virtual AP (ap0) Steering
+            if [ -d "/sys/class/net/ap0" ] && pgrep -f "hostapd" >/dev/null 2>&1; then
                 CUR_AP_TBL=$(ip rule show 2>/dev/null | grep -E "7010:.*iif ap0" | awk '{print $NF}' | head -n1)
                 if [ "$CUR_AP_TBL" != "$ACTIVE_WAN_TBL" ]; then
                     ip rule del pref 7010 2>/dev/null || true
@@ -234,6 +235,27 @@ MODDIR="${0%/*}"
                     iptables -I FORWARD 1 -i ap0 -j ACCEPT 2>/dev/null || true
                 iptables -C FORWARD -o ap0 -j ACCEPT 2>/dev/null || \
                     iptables -I FORWARD 1 -o ap0 -j ACCEPT 2>/dev/null || true
+            fi
+
+            # 2. Samsung Mobile Hotspot (swlan0) Steering
+            if [ -d "/sys/class/net/swlan0" ] && ip link show swlan0 2>/dev/null | grep -q "state UP"; then
+                CUR_SWLAN_TBL=$(ip rule show 2>/dev/null | grep -E "7011:.*iif swlan0" | awk '{print $NF}' | head -n1)
+                if [ "$CUR_SWLAN_TBL" != "$ACTIVE_WAN_TBL" ]; then
+                    ip rule del pref 7011 2>/dev/null || true
+                    ip rule add from all iif swlan0 lookup "$ACTIVE_WAN_TBL" pref 7011 2>/dev/null || true
+                fi
+
+                SW_SUBNET=$(ip -4 -o addr show dev swlan0 2>/dev/null | awk '{print $4}')
+                if [ -n "$SW_SUBNET" ]; then
+                    ip route add "$SW_SUBNET" dev swlan0 scope link table main 2>/dev/null || true
+                    ip route add "$SW_SUBNET" dev swlan0 scope link table 97 2>/dev/null || true
+                    iptables -t nat -C POSTROUTING -s "$SW_SUBNET" ! -d "$SW_SUBNET" -j MASQUERADE 2>/dev/null || \
+                        iptables -t nat -I POSTROUTING 1 -s "$SW_SUBNET" ! -d "$SW_SUBNET" -j MASQUERADE 2>/dev/null || true
+                    ip rule show 2>/dev/null | grep -q "7000:.*to $SW_SUBNET" || \
+                        ip rule add from all to "$SW_SUBNET" lookup main pref 7000 2>/dev/null || true
+                fi
+                iptables -C FORWARD -i swlan0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -i swlan0 -j ACCEPT 2>/dev/null || true
+                iptables -C FORWARD -o swlan0 -j ACCEPT 2>/dev/null || iptables -I FORWARD 1 -o swlan0 -j ACCEPT 2>/dev/null || true
             fi
         fi
 
